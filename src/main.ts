@@ -14,6 +14,7 @@ import { DayNightCycle } from './rendering/DayNightCycle';
 import { SaveManager, SaveData, SAVE_VERSION } from './save/SaveManager';
 import { Inventory } from './items/Inventory';
 import { EntityManager } from './entities/EntityManager';
+import { InventoryScreen } from './ui/InventoryScreen';
 import { Menu, loadRenderDistance } from './ui/Menu';
 
 const app = document.getElementById('app')!;
@@ -108,6 +109,25 @@ const saveManager = new SaveManager((): SaveData => ({
   inventory: inventory.toJSON(),
 }));
 
+// Game mode: runtime flag for now; Phase 17 wires full survival/creative rules.
+let creativeMode = false;
+
+// Inventory screen (E). While open the pointer is unlocked but the pause
+// menu must NOT appear — the pointerlockchange handler checks invScreen.open.
+const invScreen = new InventoryScreen(document.body, atlas, inventory, {
+  tossItem: (stack) => {
+    const dir = player.lookDirection;
+    const entity = entities.dropItem(stack, player.eyePosition.addScaledVector(dir, 0.4));
+    entity.velocity.set(dir.x * 6, dir.y * 6 + 2, dir.z * 6);
+    entity.pickupDelay = 1.5;
+  },
+  isCreative: () => creativeMode,
+  requestClose: () => {
+    invScreen.closeScreen();
+    game.renderer.domElement.requestPointerLock();
+  },
+});
+
 // Pause menu: shown whenever the pointer is unlocked (Esc opens it).
 const menu = new Menu(
   document.body,
@@ -117,17 +137,46 @@ const menu = new Menu(
       streamer.renderDistance = chunks;
     },
     exportWorld: () => saveManager.exportToFile(),
+    toggleGameMode: () => {
+      creativeMode = !creativeMode;
+      return creativeMode ? 'Creative' : 'Survival';
+    },
   },
   streamer.renderDistance,
 );
 document.addEventListener('pointerlockchange', () => {
-  menu.visible = !input.isLocked;
-  if (!input.isLocked) saveManager.save();
+  if (input.isLocked) {
+    menu.visible = false;
+  } else {
+    // Esc from gameplay → pause menu; but not when the inventory screen
+    // deliberately released the lock.
+    menu.visible = !invScreen.open;
+    saveManager.save();
+  }
 });
 
 game.onUpdate((dt) => {
-  // Game pauses (player/physics frozen) while the menu is open.
+  // Game pauses (player/physics frozen) while any UI owns the pointer.
   if (!input.isLocked) return;
+
+  // E opens the inventory (released lock keeps the pause menu hidden).
+  if (input.justPressed('KeyE')) {
+    invScreen.openScreen();
+    input.unlock();
+    return;
+  }
+  // Q tosses one of the selected item.
+  if (input.justPressed('KeyQ')) {
+    const stack = hotbar.selectedStack;
+    if (stack) {
+      inventory.consumeOne(hotbar.selected);
+      const dir = player.lookDirection;
+      const entity = entities.dropItem({ ...stack, count: 1 }, player.eyePosition.addScaledVector(dir, 0.4));
+      entity.velocity.set(dir.x * 6, dir.y * 6 + 2, dir.z * 6);
+      entity.pickupDelay = 1.5;
+    }
+  }
+
   player.update(dt, input);
   dayNight.update(dt, player.position, streamer.renderDistance);
   hotbar.update(dt, input);
@@ -159,6 +208,8 @@ game.start();
   seed: SEED,
   inventory,
   entities,
+  invScreen,
+  setCreative: (v: boolean) => { creativeMode = v; },
   breakAt: (x: number, y: number, z: number) => {
     // Simulate a player break (drops included) for QA.
     const id = world.getBlock(x, y, z);

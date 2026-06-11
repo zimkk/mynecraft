@@ -22,7 +22,7 @@ export class EntityManager {
     this.itemMaterial = new THREE.MeshLambertMaterial({ map: atlas });
   }
 
-  dropItem(stack: ItemStack, position: THREE.Vector3): void {
+  dropItem(stack: ItemStack, position: THREE.Vector3): ItemEntity {
     if (this.items.length >= MAX_ITEM_ENTITIES) {
       const oldest = this.items.shift()!;
       this.scene.remove(oldest.mesh);
@@ -30,6 +30,7 @@ export class EntityManager {
     const entity = new ItemEntity(stack, position, this.itemMaterial);
     this.items.push(entity);
     this.scene.add(entity.mesh);
+    return entity;
   }
 
   update(dt: number, playerFeet: THREE.Vector3, inventory: Inventory): void {

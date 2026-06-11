@@ -64,6 +64,13 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - Save format bumped to **v2** (adds inventory) with v1→v2 migration.
 - **Verify:** break a block → item pops out → walk over it → stacks in hotbar. Verified via scripted QA (`window.vox`): grass dropped dirt, 3 drops merged into one stack, hotbar UI updated.
 
+## Phase 12 — Full Inventory & Hotbar UI ✅
+- Inventory screen on `E`: 27 main slots + hotbar row. Minecraft-style cursor stack: left-click pick/place/swap/merge, right-click split-half / place-one, shift-click quick-move between hotbar and main.
+- Click the backdrop (outside the panel) to toss the cursor stack into the world; `Q` tosses one of the selected item while playing; closing the screen returns the cursor stack to the inventory.
+- Creative palette tab (visible in creative mode — interim toggle in pause menu, full mode rules in Phase 17): grab max stacks (LMB), singles (RMB), or shift-click straight into the inventory; items are infinite.
+- Pointer lock released while open; pause menu suppressed via `invScreen.open`; game logic frozen.
+- **Verify (scripted + visual):** picked up 64 stone, right-click-placed 2, merged back; shift-click moved stacks between sections; palette granted a 64-stack; counts and icons render; inventory persists in the v2 save.
+
 ## Decisions & known issues
 - Phases were verified in-browser (screenshots + scripted checks via the `window.vox` dev hook).
 - Water is rendered as a transparent pass without surface animation; swimming physics not implemented (water is non-solid — you sink/walk through it).

@@ -4,6 +4,8 @@ export interface MenuCallbacks {
   resume: () => void;
   setRenderDistance: (chunks: number) => void;
   exportWorld: () => void;
+  /** Toggle survival/creative; returns the new mode label. */
+  toggleGameMode: () => string;
 }
 
 const SETTINGS_KEY = 'voxelcraft.settings';
@@ -47,6 +49,9 @@ export class Menu {
           <button id="m-import">Import</button>
           <button id="m-reset" class="danger">Reset World</button>
         </div>
+        <div class="row btn-row">
+          <button id="m-mode">Mode: Survival</button>
+        </div>
         <div class="controls">
           <b>Controls</b><br>
           WASD move · mouse look · Space jump<br>
@@ -61,6 +66,9 @@ export class Menu {
     this.rdLabel = $('m-rd-val');
 
     $('m-resume').addEventListener('click', callbacks.resume);
+    $('m-mode').addEventListener('click', () => {
+      $('m-mode').textContent = `Mode: ${callbacks.toggleGameMode()}`;
+    });
     $('m-export').addEventListener('click', callbacks.exportWorld);
     $('m-reset').addEventListener('click', () => {
       if (confirm('Delete this world and start over?')) SaveManager.reset();
