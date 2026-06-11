@@ -11,6 +11,10 @@ export enum Block {
   Plank = 8,
   Glass = 9,
   Cobblestone = 10,
+  CoalOre = 11,
+  IronOre = 12,
+  GoldOre = 13,
+  DiamondOre = 14,
 }
 
 /** Atlas tile slots (filled by the runtime-generated texture atlas in /rendering). */
@@ -27,6 +31,15 @@ export const Tile = {
   Plank: 9,
   Glass: 10,
   Cobblestone: 11,
+  CoalOre: 12,
+  IronOre: 13,
+  GoldOre: 14,
+  DiamondOre: 15,
+  CoalItem: 16,
+  DiamondItem: 17,
+  Stick: 18,
+  IronIngot: 19,
+  GoldIngot: 20,
 } as const;
 
 export interface BlockDef {
@@ -74,6 +87,10 @@ export const BLOCKS: readonly BlockDef[] = [
   def(Block.Plank, 'Plank', true, false, { all: Tile.Plank }, 'plank'),
   def(Block.Glass, 'Glass', true, true, { all: Tile.Glass }, null),
   def(Block.Cobblestone, 'Cobblestone', true, false, { all: Tile.Cobblestone }),
+  def(Block.CoalOre, 'Coal Ore', true, false, { all: Tile.CoalOre }, 'coal'),
+  def(Block.IronOre, 'Iron Ore', true, false, { all: Tile.IronOre }, 'iron_ore'),
+  def(Block.GoldOre, 'Gold Ore', true, false, { all: Tile.GoldOre }, 'gold_ore'),
+  def(Block.DiamondOre, 'Diamond Ore', true, false, { all: Tile.DiamondOre }, 'diamond'),
 ];
 
 export function blockDef(id: number): BlockDef {

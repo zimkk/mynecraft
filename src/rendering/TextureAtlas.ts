@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { Tile } from '../world/BlockRegistry';
 
-export const ATLAS_COLS = 4;
-export const ATLAS_ROWS = 4;
+export const ATLAS_COLS = 8;
+export const ATLAS_ROWS = 8;
 export const TILE_PX = 16;
 
 /** Deterministic RNG so the generated textures look the same every run. */
@@ -82,7 +82,59 @@ const PAINTERS: Record<number, TilePainter> = {
     const base = mortar ? 90 : 130;
     return [base + n, base + n, base + n, 255];
   },
+  [Tile.CoalOre]: ore(40, 40, 40),
+  [Tile.IronOre]: ore(216, 175, 147),
+  [Tile.GoldOre]: ore(250, 220, 80),
+  [Tile.DiamondOre]: ore(95, 225, 220),
+  [Tile.CoalItem]: itemBlob(35, 35, 35),
+  [Tile.DiamondItem]: itemBlob(95, 225, 220),
+  [Tile.Stick]: (x, y) => {
+    // Diagonal stick from bottom-left to top-right.
+    const onStick = Math.abs(x - (15 - y)) <= 1 && x > 2 && x < 13;
+    return onStick ? [137, 103, 57, 255] : [0, 0, 0, 0];
+  },
+  [Tile.IronIngot]: ingot(225, 220, 215),
+  [Tile.GoldIngot]: ingot(250, 215, 70),
 };
+
+/** Stone base with embedded ore specks at fixed 2×2 spots. */
+function ore(r: number, g: number, b: number): TilePainter {
+  const spots = [[3, 4], [9, 2], [12, 10], [5, 11], [10, 13], [13, 5]];
+  return (x, y, rng) => {
+    for (const [sx, sy] of spots) {
+      if (x >= sx && x <= sx + 1 && y >= sy && y <= sy + 1) {
+        const n = (rng() - 0.5) * 20;
+        return [r + n, g + n, b + n, 255];
+      }
+    }
+    return noisy(127, 127, 127)(x, y, rng);
+  };
+}
+
+/** Rough rounded lump on a transparent background (item icon). */
+function itemBlob(r: number, g: number, b: number): TilePainter {
+  return (x, y, rng) => {
+    const dx = x - 7.5;
+    const dy = y - 8;
+    if (dx * dx + dy * dy > 22) return [0, 0, 0, 0];
+    const n = (rng() - 0.5) * 30;
+    const hi = dx + dy < -4 ? 30 : 0; // top-left highlight
+    return [r + n + hi, g + n + hi, b + n + hi, 255];
+  };
+}
+
+/** Trapezoid ingot shape on transparent background. */
+function ingot(r: number, g: number, b: number): TilePainter {
+  return (x, y, rng) => {
+    const inY = y >= 5 && y <= 11;
+    const slope = y - 5; // widens downward
+    const inX = x >= 4 - Math.floor(slope / 3) && x <= 11 + Math.floor(slope / 3);
+    if (!inY || !inX) return [0, 0, 0, 0];
+    const n = (rng() - 0.5) * 18;
+    const hi = y <= 6 ? 25 : y >= 11 ? -25 : 0;
+    return [r + n + hi, g + n + hi, b + n + hi, 255];
+  };
+}
 
 /**
  * Paints every tile into one canvas and returns it as a Three.js texture with

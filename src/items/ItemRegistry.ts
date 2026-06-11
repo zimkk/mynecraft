@@ -1,4 +1,4 @@
-import { Block, blockDef } from '../world/BlockRegistry';
+import { Block, Tile, blockDef } from '../world/BlockRegistry';
 
 export type ItemType = 'block' | 'tool' | 'material' | 'food' | 'misc';
 
@@ -63,6 +63,17 @@ registerBlockItem(Block.Leaves, 'leaves', 'Leaves');
 registerBlockItem(Block.Plank, 'plank', 'Planks');
 registerBlockItem(Block.Glass, 'glass', 'Glass');
 registerBlockItem(Block.Cobblestone, 'cobblestone', 'Cobblestone');
+registerBlockItem(Block.CoalOre, 'coal_ore', 'Coal Ore');
+registerBlockItem(Block.IronOre, 'iron_ore', 'Iron Ore');
+registerBlockItem(Block.GoldOre, 'gold_ore', 'Gold Ore');
+registerBlockItem(Block.DiamondOre, 'diamond_ore', 'Diamond Ore');
+
+// Materials.
+register({ id: 'coal', name: 'Coal', type: 'material', maxStack: 64, icon: Tile.CoalItem });
+register({ id: 'diamond', name: 'Diamond', type: 'material', maxStack: 64, icon: Tile.DiamondItem });
+register({ id: 'stick', name: 'Stick', type: 'material', maxStack: 64, icon: Tile.Stick });
+register({ id: 'iron_ingot', name: 'Iron Ingot', type: 'material', maxStack: 64, icon: Tile.IronIngot });
+register({ id: 'gold_ingot', name: 'Gold Ingot', type: 'material', maxStack: 64, icon: Tile.GoldIngot });
 
 export function itemDef(id: string): ItemDef | undefined {
   return REGISTRY.get(id);

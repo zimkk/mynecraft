@@ -71,6 +71,14 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - Pointer lock released while open; pause menu suppressed via `invScreen.open`; game logic frozen.
 - **Verify (scripted + visual):** picked up 64 stone, right-click-placed 2, merged back; shift-click moved stacks between sections; palette granted a 64-stack; counts and icons render; inventory persists in the v2 save.
 
+## Phase 13 — Trees, Ores & Caves ✅
+- **Trees:** deterministic one-anchor-per-8×8-cell placement (seeded hash, ~40% cell density), trunks 4-6 logs with layered canopies. Cross-chunk safety: each chunk evaluates all anchors within a 3-block margin and writes only its own blocks — no cut trunks or floating canopies at seams, no deferred-block queue needed.
+- **Ores:** seeded random-walk veins replacing stone — coal (y5-58, common), iron (y5-40), gold (y5-22), diamond (y5-14, rare). New ore blocks drop coal/diamond items directly; iron/gold drop ore blocks for smelting (Phase 16).
+- **Caves:** 3D simplex carve (threshold 0.68) through the stone layer with a 4-block surface roof; never under water columns so oceans don't drain.
+- Atlas expanded 4×4 → 8×8; ore tiles + item icons (coal, diamond, stick, ingots) added; materials registered.
+- **Verify:** forests visible with whole trees across chunk borders; sampled 40k underground cells: coal 163 / iron 158 / gold 90 / diamond 42, ~4% cave air. Leaves drop nothing; logs drop logs.
+- Deferred: leaf decay (optional per spec).
+
 ## Decisions & known issues
 - Phases were verified in-browser (screenshots + scripted checks via the `window.vox` dev hook).
 - Water is rendered as a transparent pass without surface animation; swimming physics not implemented (water is non-solid — you sink/walk through it).
