@@ -10,11 +10,54 @@
       canvas { display: block; }
       .hud { position: fixed; font-family: 'Consolas', monospace; color: #fff; user-select: none; pointer-events: none; }
       #fps { top: 8px; left: 8px; font-size: 14px; text-shadow: 1px 1px 0 #000; }
+      #debug {
+        top: 32px; left: 8px; font-size: 13px; line-height: 1.45;
+        background: rgba(0,0,0,0.45); padding: 8px 10px; border-radius: 4px;
+      }
+      #crosshair {
+        position: fixed; top: 50%; left: 50%; width: 18px; height: 18px;
+        transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: difference;
+      }
+      #crosshair::before, #crosshair::after {
+        content: ''; position: absolute; background: #fff;
+      }
+      #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+      #crosshair::after { top: 8px; left: 0; width: 18px; height: 2px; }
+      #hotbar {
+        position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+        display: flex; gap: 4px; padding: 4px; background: rgba(0,0,0,0.35);
+        border-radius: 6px; user-select: none;
+      }
+      #hotbar .slot {
+        position: relative; width: 48px; height: 48px; border: 2px solid #555;
+        border-radius: 4px; background: rgba(20,20,20,0.6);
+        display: flex; align-items: center; justify-content: center;
+      }
+      #hotbar .slot.active { border-color: #fff; background: rgba(60,60,60,0.7); }
+      #hotbar .slot img { width: 36px; height: 36px; image-rendering: pixelated; }
+      #hotbar .slot .num {
+        position: absolute; top: 1px; left: 3px; font-size: 10px;
+        font-family: 'Consolas', monospace; color: #ccc; text-shadow: 1px 1px 0 #000;
+      }
+      #block-name {
+        position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%);
+        font-family: 'Consolas', monospace; font-size: 15px; color: #fff;
+        text-shadow: 1px 1px 0 #000; opacity: 0; transition: opacity 0.4s;
+        pointer-events: none; user-select: none;
+      }
+      #hint {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -120px);
+        font-family: 'Consolas', monospace; font-size: 15px; color: #fff;
+        background: rgba(0,0,0,0.55); padding: 10px 16px; border-radius: 6px;
+        pointer-events: none; user-select: none; text-align: center; line-height: 1.6;
+      }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <div id="fps" class="hud">FPS: --</div>
+    <div id="crosshair"></div>
+    <div id="hint">Click to play<br><small>WASD move · Space jump · double-Space fly · LMB break · RMB place · 1-9/wheel hotbar · F3 debug</small></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -88,6 +88,22 @@ const PAINTERS: Record<number, TilePainter> = {
  * Paints every tile into one canvas and returns it as a Three.js texture with
  * nearest-neighbor filtering for the crisp pixel-art look.
  */
+/** Extract one tile from the atlas canvas as a data URL (used for hotbar icons). */
+export function tileIconURL(atlas: THREE.CanvasTexture, tile: number, size = 32): string {
+  const src = atlas.image as HTMLCanvasElement;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(
+    src,
+    (tile % ATLAS_COLS) * TILE_PX, Math.floor(tile / ATLAS_COLS) * TILE_PX, TILE_PX, TILE_PX,
+    0, 0, size, size,
+  );
+  return c.toDataURL();
+}
+
 export function buildAtlasTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = ATLAS_COLS * TILE_PX;
