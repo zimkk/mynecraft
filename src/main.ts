@@ -12,6 +12,7 @@ import { Hotbar } from './ui/Hotbar';
 import { DebugOverlay } from './ui/DebugOverlay';
 import { DayNightCycle } from './rendering/DayNightCycle';
 import { SaveManager, SaveData } from './save/SaveManager';
+import { Menu, loadRenderDistance } from './ui/Menu';
 
 const app = document.getElementById('app')!;
 const game = new Game(app);
@@ -34,17 +35,16 @@ const world = new ChunkManager();
 const generator = new TerrainGenerator(SEED);
 const atlas = buildAtlasTexture();
 const chunkRenderer = new ChunkRenderer(game.scene, world, atlas);
-const streamer = new ChunkStreamer(world, generator, chunkRenderer, 6);
+const streamer = new ChunkStreamer(world, generator, chunkRenderer, loadRenderDistance());
 if (save) {
   for (const [key, id] of save.edits) streamer.edits.set(key, id);
 }
 
-// Pre-generate the spawn area synchronously so the player doesn't fall into void.
+// Pre-generate the spawn area synchronously so the player doesn't fall into
+// void; everything afterwards streams in from the worker pool.
 const spawnX = save?.player.x ?? 0.5;
 const spawnZ = save?.player.z ?? 0.5;
-while (!streamer.isAreaReady(spawnX, spawnZ)) {
-  streamer.update(spawnX, spawnZ, 64);
-}
+streamer.pregenerate(spawnX, spawnZ);
 
 // Player spawns on top of the terrain (or where the save left them).
 const player = new Player(world);
@@ -87,13 +87,26 @@ const saveManager = new SaveManager((): SaveData => ({
   time: dayNight.time,
 }));
 
-// "Click to play" hint, hidden while pointer is locked.
-const hint = document.getElementById('hint')!;
+// Pause menu: shown whenever the pointer is unlocked (Esc opens it).
+const menu = new Menu(
+  document.body,
+  {
+    resume: () => game.renderer.domElement.requestPointerLock(),
+    setRenderDistance: (chunks) => {
+      streamer.renderDistance = chunks;
+    },
+    exportWorld: () => saveManager.exportToFile(),
+  },
+  streamer.renderDistance,
+);
 document.addEventListener('pointerlockchange', () => {
-  hint.style.display = input.isLocked ? 'none' : 'block';
+  menu.visible = !input.isLocked;
+  if (!input.isLocked) saveManager.save();
 });
 
 game.onUpdate((dt) => {
+  // Game pauses (player/physics frozen) while the menu is open.
+  if (!input.isLocked) return;
   player.update(dt, input);
   dayNight.update(dt, player.position, streamer.renderDistance);
   hotbar.update(dt, input);
@@ -111,6 +124,8 @@ game.onRender((_alpha, dt) => {
   input.endFrame();
 });
 
+// Set sun/sky/fog once so the world looks right behind the start menu.
+dayNight.update(0, player.position, streamer.renderDistance);
 game.start();
 
 // Console/dev hook for debugging and automated QA.

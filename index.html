@@ -45,19 +45,38 @@
         text-shadow: 1px 1px 0 #000; opacity: 0; transition: opacity 0.4s;
         pointer-events: none; user-select: none;
       }
-      #hint {
-        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -120px);
-        font-family: 'Consolas', monospace; font-size: 15px; color: #fff;
-        background: rgba(0,0,0,0.55); padding: 10px 16px; border-radius: 6px;
-        pointer-events: none; user-select: none; text-align: center; line-height: 1.6;
+      #menu {
+        position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+        background: rgba(0, 0, 0, 0.55); font-family: 'Consolas', monospace; z-index: 10;
       }
+      #menu .panel {
+        background: rgba(24, 26, 32, 0.95); border: 1px solid #444; border-radius: 10px;
+        padding: 22px 28px; width: 340px; color: #eee; display: flex; flex-direction: column; gap: 12px;
+      }
+      #menu h1 { margin: 0 0 4px; font-size: 26px; text-align: center; letter-spacing: 2px; }
+      #menu button {
+        font-family: inherit; font-size: 14px; padding: 8px 10px; cursor: pointer;
+        background: #3a3f4b; color: #fff; border: 1px solid #555; border-radius: 5px;
+      }
+      #menu button:hover { background: #4a5160; }
+      #menu button.danger { background: #5a2c2c; border-color: #804040; }
+      #menu button.danger:hover { background: #74403a; }
+      #menu .row { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+      #menu .row input[type=range] { width: 100%; }
+      #menu .seed-row { flex-direction: row; }
+      #menu .seed-row input {
+        flex: 1; font-family: inherit; font-size: 13px; padding: 7px 8px;
+        background: #1c1e24; color: #eee; border: 1px solid #555; border-radius: 5px;
+      }
+      #menu .btn-row { flex-direction: row; }
+      #menu .btn-row button { flex: 1; }
+      #menu .controls { font-size: 12px; color: #aaa; line-height: 1.7; text-align: center; }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <div id="fps" class="hud">FPS: --</div>
     <div id="crosshair"></div>
-    <div id="hint">Click to play<br><small>WASD move · Space jump · double-Space fly · LMB break · RMB place · 1-9/wheel hotbar · F3 debug</small></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
