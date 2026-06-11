@@ -1,5 +1,13 @@
 # VoxelCraft — Build Progress
 
+## Stabilization pass (before Phase 11) ✅
+Bugs found and fixed:
+1. **AABB collision clamped to the first overlapping cell, not the most restrictive** (`Player.moveAxis`) — with several overlapped cells the player could clamp to the wrong plane and clip beside steps. Now scans all cells and takes the min/max candidate per travel direction.
+2. **Leaves rendered in the transparent pass** (depth-write off, double-sided) — caused see-through canopies and sort artifacts against water/glass. Switched to opaque "fast" leaves (full alpha, occluding), which also culls more faces.
+3. **Fresh worlds could spawn underwater** — spawn used `heightAt(0,0)` unconditionally. Added a spiral search for the nearest dry column above sea level.
+
+Audited and confirmed OK: cross-chunk-border face culling (world-coord neighbor lookups + neighbor dirty-marking on border edits), re-mesh after edits (chunk + border neighbors flagged), DDA raycast face normals, placement-inside-player rejection.
+
 All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript errors (`npm run typecheck`), zero console errors.
 
 ## Phase 1 — Scaffold & Render Loop ✅

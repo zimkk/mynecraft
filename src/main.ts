@@ -3,7 +3,7 @@ import { Game } from './core/Game';
 import { Input } from './core/Input';
 import { ChunkManager } from './world/ChunkManager';
 import { ChunkStreamer } from './world/ChunkStreamer';
-import { TerrainGenerator } from './terrain/TerrainGenerator';
+import { TerrainGenerator, WATER_LEVEL } from './terrain/TerrainGenerator';
 import { buildAtlasTexture } from './rendering/TextureAtlas';
 import { ChunkRenderer } from './rendering/ChunkRenderer';
 import { Player } from './player/Player';
@@ -40,10 +40,25 @@ if (save) {
   for (const [key, id] of save.edits) streamer.edits.set(key, id);
 }
 
+// Spawn at the nearest dry column to the origin (spiral search) so a fresh
+// world never starts underwater.
+function findDrySpawn(): { x: number; z: number } {
+  for (let ring = 0; ring < 24; ring++) {
+    for (let i = 0; i < Math.max(1, ring * 8); i++) {
+      const angle = (i / Math.max(1, ring * 8)) * Math.PI * 2;
+      const x = Math.round(Math.cos(angle) * ring * 8);
+      const z = Math.round(Math.sin(angle) * ring * 8);
+      if (generator.heightAt(x, z) > WATER_LEVEL + 1) return { x, z };
+    }
+  }
+  return { x: 0, z: 0 };
+}
+
 // Pre-generate the spawn area synchronously so the player doesn't fall into
 // void; everything afterwards streams in from the worker pool.
-const spawnX = save?.player.x ?? 0.5;
-const spawnZ = save?.player.z ?? 0.5;
+const drySpawn = save ? null : findDrySpawn();
+const spawnX = save?.player.x ?? drySpawn!.x + 0.5;
+const spawnZ = save?.player.z ?? drySpawn!.z + 0.5;
 streamer.pregenerate(spawnX, spawnZ);
 
 // Player spawns on top of the terrain (or where the save left them).

@@ -140,29 +140,45 @@ export class Player {
     const minZ = Math.floor(p.z - half);
     const maxZ = Math.floor(p.z + half - 1e-7);
 
+    // Scan every overlapped cell and clamp against the MOST restrictive one
+    // (clamping to the first found can pick the wrong plane when several
+    // cells overlap, e.g. moving up beside a step).
+    let hit = false;
+    let landed = false;
+    let resolved = axis === 0 ? p.x : axis === 1 ? p.y : p.z;
+
     for (let by = minY; by <= maxY; by++) {
       for (let bz = minZ; bz <= maxZ; bz++) {
         for (let bx = minX; bx <= maxX; bx++) {
           const id = this.world.getBlock(bx, by, bz);
           if (!isSolid(id) || id === Block.Water) continue;
+          hit = true;
 
+          let candidate: number;
           if (axis === 0) {
-            p.x = amount > 0 ? bx - half - 1e-6 : bx + 1 + half + 1e-6;
-            this.velocity.x = 0;
+            candidate = amount > 0 ? bx - half - 1e-6 : bx + 1 + half + 1e-6;
           } else if (axis === 1) {
             if (amount > 0) {
-              p.y = by - HEIGHT - 1e-6;
+              candidate = by - HEIGHT - 1e-6;
             } else {
-              p.y = by + 1;
-              this.onGround = true;
+              candidate = by + 1;
+              landed = true;
             }
-            this.velocity.y = 0;
           } else {
-            p.z = amount > 0 ? bz - half - 1e-6 : bz + 1 + half + 1e-6;
-            this.velocity.z = 0;
+            candidate = amount > 0 ? bz - half - 1e-6 : bz + 1 + half + 1e-6;
           }
-          return; // position changed; remaining cells no longer overlap
+          resolved = amount > 0 ? Math.min(resolved, candidate) : Math.max(resolved, candidate);
         }
+      }
+    }
+
+    if (hit) {
+      p[coord] = resolved;
+      if (axis === 0) this.velocity.x = 0;
+      else if (axis === 2) this.velocity.z = 0;
+      else {
+        this.velocity.y = 0;
+        if (landed) this.onGround = true;
       }
     }
   }

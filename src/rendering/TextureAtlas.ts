@@ -60,7 +60,7 @@ const PAINTERS: Record<number, TilePainter> = {
     const n = (rng() - 0.5) * 40;
     // Occasional darker "gap" pixels for depth.
     const dark = rng() < 0.12 ? -45 : 0;
-    return [58 + n + dark, 125 + n + dark, 40 + n + dark, 235];
+    return [58 + n + dark, 125 + n + dark, 40 + n + dark, 255];
   },
   [Tile.Plank]: (_x, y, rng) => {
     // Horizontal board seams every 4 pixels.

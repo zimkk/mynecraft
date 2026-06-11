@@ -61,7 +61,9 @@ export const BLOCKS: readonly BlockDef[] = [
   def(Block.Sand, 'Sand', true, false, { all: Tile.Sand }),
   def(Block.Water, 'Water', false, true, { all: Tile.Water }),
   def(Block.Log, 'Log', true, false, { top: Tile.LogEnd, bottom: Tile.LogEnd, side: Tile.LogSide }),
-  def(Block.Leaves, 'Leaves', true, true, { all: Tile.Leaves }),
+  // "Fast" leaves: rendered fully opaque so they occlude correctly and stay
+  // out of the transparent pass (which has depth-write off and sorts poorly).
+  def(Block.Leaves, 'Leaves', true, false, { all: Tile.Leaves }),
   def(Block.Plank, 'Plank', true, false, { all: Tile.Plank }),
   def(Block.Glass, 'Glass', true, true, { all: Tile.Glass }),
   def(Block.Cobblestone, 'Cobblestone', true, false, { all: Tile.Cobblestone }),
