@@ -1,0 +1,107 @@
+export interface SaveData {
+  version: 1;
+  seed: string;
+  /** Player-modified blocks: "wx,wy,wz" → block id (delta vs. generated terrain). */
+  edits: Array<[string, number]>;
+  player: {
+    x: number; y: number; z: number;
+    yaw: number; pitch: number;
+    flying: boolean;
+    hotbarSlot: number;
+  };
+  /** Time of day fraction (0-1). */
+  time: number;
+}
+
+const SAVE_KEY = 'voxelcraft.save.v1';
+const NEW_SEED_KEY = 'voxelcraft.newseed';
+const AUTOSAVE_INTERVAL_S = 15;
+
+/**
+ * Persists the world as seed + edit-delta to localStorage (tiny even for big
+ * worlds), with JSON file export/import. "New world" and "reset" work by
+ * staging the change and reloading the page — startup then picks it up.
+ */
+export class SaveManager {
+  private readonly getState: () => SaveData;
+  private timer = 0;
+
+  constructor(getState: () => SaveData) {
+    this.getState = getState;
+    window.addEventListener('beforeunload', () => this.save());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.save();
+    });
+  }
+
+  /** Call every frame; saves on a fixed wall-clock interval. */
+  tick(dt: number): void {
+    this.timer += dt;
+    if (this.timer >= AUTOSAVE_INTERVAL_S) {
+      this.timer = 0;
+      this.save();
+    }
+  }
+
+  save(): void {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(this.getState()));
+    } catch (e) {
+      console.warn('Save failed:', e);
+    }
+  }
+
+  static load(): SaveData | null {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw) as SaveData;
+      if (data.version !== 1 || typeof data.seed !== 'string') return null;
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Seed staged by "New World" before the page reloaded, if any. */
+  static consumeNewSeed(): string | null {
+    const seed = localStorage.getItem(NEW_SEED_KEY);
+    if (seed !== null) localStorage.removeItem(NEW_SEED_KEY);
+    return seed;
+  }
+
+  /** Stage a fresh world with the given seed and reload. */
+  static newWorld(seed: string): void {
+    localStorage.removeItem(SAVE_KEY);
+    localStorage.setItem(NEW_SEED_KEY, seed);
+    location.reload();
+  }
+
+  /** Wipe the save and reload (same as new world with a random seed). */
+  static reset(): void {
+    localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(NEW_SEED_KEY);
+    location.reload();
+  }
+
+  /** Download the current state as a JSON file. */
+  exportToFile(): void {
+    const blob = new Blob([JSON.stringify(this.getState(), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `voxelcraft-world-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  /** Validate an imported JSON file, store it as the active save, reload. */
+  static async importFromFile(file: File): Promise<void> {
+    const text = await file.text();
+    const data = JSON.parse(text) as SaveData;
+    if (data.version !== 1 || typeof data.seed !== 'string' || !Array.isArray(data.edits)) {
+      throw new Error('Not a valid VoxelCraft save file');
+    }
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    location.reload();
+  }
+}

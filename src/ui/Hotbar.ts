@@ -67,7 +67,7 @@ export class Hotbar {
     }
   }
 
-  private select(i: number): void {
+  select(i: number): void {
     if (i === this.selected) return;
     this.selected = i;
     this.render();
