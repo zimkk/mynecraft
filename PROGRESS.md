@@ -52,6 +52,18 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - Pause/main menu: resume, live render-distance slider (3–12, persisted), seed input/new world, export/import, reset, controls list. Game logic pauses while menu open.
 - **Verify:** teleport/fly far — FPS stays at cap while chunks stream; slider changes view distance live.
 
+---
+
+# Phase 2 roadmap
+
+## Phase 11 — Item & Entity System ✅
+- Item registry (string ids; block/tool/material/food/misc types, max stack, atlas icon, tool/food metadata slots for later phases); `ItemStack {id,count,durability?}`.
+- `Inventory` (36 slots, hotbar = 0-8): add with auto-stacking (existing stacks first), remove/swap/split helpers, onChange events for UI.
+- Blocks define `drops` (grass→dirt, stone→cobblestone, leaves→nothing); breaking spawns a spinning/bobbing dropped-item entity with gravity + ground collision, 120 s despawn, pickup radius 1.5 with auto-stack merge.
+- Hotbar refactored to render live inventory slots (icons, counts, durability bar support); placing consumes one item; empty hand places nothing.
+- Save format bumped to **v2** (adds inventory) with v1→v2 migration.
+- **Verify:** break a block → item pops out → walk over it → stacks in hotbar. Verified via scripted QA (`window.vox`): grass dropped dirt, 3 drops merged into one stack, hotbar UI updated.
+
 ## Decisions & known issues
 - Phases were verified in-browser (screenshots + scripted checks via the `window.vox` dev hook).
 - Water is rendered as a transparent pass without surface animation; swimming physics not implemented (water is non-solid — you sink/walk through it).

@@ -1,5 +1,9 @@
+import { ItemStack } from '../items/ItemRegistry';
+
+export const SAVE_VERSION = 2;
+
 export interface SaveData {
-  version: 1;
+  version: number;
   seed: string;
   /** Player-modified blocks: "wx,wy,wz" → block id (delta vs. generated terrain). */
   edits: Array<[string, number]>;
@@ -11,6 +15,22 @@ export interface SaveData {
   };
   /** Time of day fraction (0-1). */
   time: number;
+  /** v2+: player inventory slots. */
+  inventory: Array<ItemStack | null>;
+}
+
+/**
+ * Upgrade older saves in place; returns null if the save is unusable.
+ * v1 → v2: inventory didn't exist yet — start with an empty one.
+ */
+function migrate(data: SaveData): SaveData | null {
+  if (typeof data.seed !== 'string' || !Array.isArray(data.edits)) return null;
+  if (data.version === 1) {
+    data.inventory = [];
+    data.version = 2;
+  }
+  if (data.version !== SAVE_VERSION) return null;
+  return data;
 }
 
 const SAVE_KEY = 'voxelcraft.save.v1';
@@ -55,9 +75,7 @@ export class SaveManager {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return null;
-      const data = JSON.parse(raw) as SaveData;
-      if (data.version !== 1 || typeof data.seed !== 'string') return null;
-      return data;
+      return migrate(JSON.parse(raw) as SaveData);
     } catch {
       return null;
     }
@@ -97,10 +115,8 @@ export class SaveManager {
   /** Validate an imported JSON file, store it as the active save, reload. */
   static async importFromFile(file: File): Promise<void> {
     const text = await file.text();
-    const data = JSON.parse(text) as SaveData;
-    if (data.version !== 1 || typeof data.seed !== 'string' || !Array.isArray(data.edits)) {
-      throw new Error('Not a valid VoxelCraft save file');
-    }
+    const data = migrate(JSON.parse(text) as SaveData);
+    if (!data) throw new Error('Not a valid VoxelCraft save file');
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     location.reload();
   }

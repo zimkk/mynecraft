@@ -38,6 +38,8 @@ export interface BlockDef {
   transparent: boolean;
   /** Tile index per face, in order: -X, +X, -Y (bottom), +Y (top), -Z, +Z. */
   tiles: [number, number, number, number, number, number];
+  /** Item id dropped when broken; null = nothing. Defaults to the block's own item. */
+  drops: string | null;
 }
 
 function def(
@@ -46,26 +48,31 @@ function def(
   solid: boolean,
   transparent: boolean,
   tiles: { all?: number; top?: number; bottom?: number; side?: number },
+  drops?: string | null,
 ): BlockDef {
   const side = tiles.side ?? tiles.all ?? 0;
   const top = tiles.top ?? tiles.all ?? side;
   const bottom = tiles.bottom ?? tiles.all ?? side;
-  return { id, name, solid, transparent, tiles: [side, side, bottom, top, side, side] };
+  return {
+    id, name, solid, transparent,
+    tiles: [side, side, bottom, top, side, side],
+    drops: drops === undefined ? name.toLowerCase().replace(/ /g, '_') : drops,
+  };
 }
 
 export const BLOCKS: readonly BlockDef[] = [
-  def(Block.Air, 'Air', false, true, { all: 0 }),
-  def(Block.Grass, 'Grass', true, false, { top: Tile.GrassTop, bottom: Tile.Dirt, side: Tile.GrassSide }),
+  def(Block.Air, 'Air', false, true, { all: 0 }, null),
+  def(Block.Grass, 'Grass', true, false, { top: Tile.GrassTop, bottom: Tile.Dirt, side: Tile.GrassSide }, 'dirt'),
   def(Block.Dirt, 'Dirt', true, false, { all: Tile.Dirt }),
-  def(Block.Stone, 'Stone', true, false, { all: Tile.Stone }),
+  def(Block.Stone, 'Stone', true, false, { all: Tile.Stone }, 'cobblestone'),
   def(Block.Sand, 'Sand', true, false, { all: Tile.Sand }),
-  def(Block.Water, 'Water', false, true, { all: Tile.Water }),
+  def(Block.Water, 'Water', false, true, { all: Tile.Water }, null),
   def(Block.Log, 'Log', true, false, { top: Tile.LogEnd, bottom: Tile.LogEnd, side: Tile.LogSide }),
   // "Fast" leaves: rendered fully opaque so they occlude correctly and stay
   // out of the transparent pass (which has depth-write off and sorts poorly).
-  def(Block.Leaves, 'Leaves', true, false, { all: Tile.Leaves }),
-  def(Block.Plank, 'Plank', true, false, { all: Tile.Plank }),
-  def(Block.Glass, 'Glass', true, true, { all: Tile.Glass }),
+  def(Block.Leaves, 'Leaves', true, false, { all: Tile.Leaves }, null),
+  def(Block.Plank, 'Plank', true, false, { all: Tile.Plank }, 'plank'),
+  def(Block.Glass, 'Glass', true, true, { all: Tile.Glass }, null),
   def(Block.Cobblestone, 'Cobblestone', true, false, { all: Tile.Cobblestone }),
 ];
 

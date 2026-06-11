@@ -11,7 +11,9 @@ import { BlockInteraction } from './player/BlockInteraction';
 import { Hotbar } from './ui/Hotbar';
 import { DebugOverlay } from './ui/DebugOverlay';
 import { DayNightCycle } from './rendering/DayNightCycle';
-import { SaveManager, SaveData } from './save/SaveManager';
+import { SaveManager, SaveData, SAVE_VERSION } from './save/SaveManager';
+import { Inventory } from './items/Inventory';
+import { EntityManager } from './entities/EntityManager';
 import { Menu, loadRenderDistance } from './ui/Menu';
 
 const app = document.getElementById('app')!;
@@ -76,9 +78,12 @@ if (save) {
   );
 }
 
-// Interaction + UI
-const interaction = new BlockInteraction(game.scene, world, streamer, player);
-const hotbar = new Hotbar(document.body, atlas);
+// Items, entities, interaction + UI
+const inventory = new Inventory();
+if (save?.inventory?.length) inventory.loadFrom(save.inventory);
+const entities = new EntityManager(game.scene, world, atlas);
+const hotbar = new Hotbar(document.body, atlas, inventory);
+const interaction = new BlockInteraction(game.scene, world, streamer, player, entities, inventory, hotbar);
 const debug = new DebugOverlay(document.body);
 if (save) {
   hotbar.select(save.player.hotbarSlot);
@@ -87,7 +92,7 @@ if (save) {
 
 // Persistence: seed + edit delta + player state, autosaved to localStorage.
 const saveManager = new SaveManager((): SaveData => ({
-  version: 1,
+  version: SAVE_VERSION,
   seed: SEED,
   edits: [...streamer.edits.entries()],
   player: {
@@ -100,6 +105,7 @@ const saveManager = new SaveManager((): SaveData => ({
     hotbarSlot: hotbar.selected,
   },
   time: dayNight.time,
+  inventory: inventory.toJSON(),
 }));
 
 // Pause menu: shown whenever the pointer is unlocked (Esc opens it).
@@ -125,7 +131,8 @@ game.onUpdate((dt) => {
   player.update(dt, input);
   dayNight.update(dt, player.position, streamer.renderDistance);
   hotbar.update(dt, input);
-  interaction.update(dt, input, hotbar.selectedBlock);
+  interaction.update(dt, input);
+  entities.update(dt, player.position, inventory);
 });
 
 const fpsEl = document.getElementById('fps')!;
@@ -150,4 +157,13 @@ game.start();
   save: () => saveManager.save(),
   player,
   seed: SEED,
+  inventory,
+  entities,
+  breakAt: (x: number, y: number, z: number) => {
+    // Simulate a player break (drops included) for QA.
+    const id = world.getBlock(x, y, z);
+    if (id === 0) return false;
+    interaction['breakBlock']({ x, y, z, nx: 0, ny: 1, nz: 0, id });
+    return true;
+  },
 };
