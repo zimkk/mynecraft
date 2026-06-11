@@ -29,6 +29,7 @@ export class DebugOverlay {
     streamer: ChunkStreamer,
     renderer: ChunkRenderer,
     interaction: BlockInteraction,
+    clock?: string,
   ): void {
     if (input.justPressed('F3')) {
       this.visible = !this.visible;
@@ -50,7 +51,7 @@ export class DebugOverlay {
       `Chunks loaded: ${streamer.loadedChunkCount} | Triangles: ${renderer.triangleCount}`,
       `Mode: ${player.flying ? 'flying' : player.onGround ? 'walking' : 'airborne'}`,
       t ? `Target: ${blockDef(t.id).name} @ ${t.x}, ${t.y}, ${t.z}` : 'Target: —',
-      `Edits: ${streamer.edits.size}`,
+      `Edits: ${streamer.edits.size}${clock ? ` | Time: ${clock}` : ''}`,
     ].join('<br>');
   }
 }

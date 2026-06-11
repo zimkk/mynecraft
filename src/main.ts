@@ -10,16 +10,19 @@ import { Player } from './player/Player';
 import { BlockInteraction } from './player/BlockInteraction';
 import { Hotbar } from './ui/Hotbar';
 import { DebugOverlay } from './ui/DebugOverlay';
+import { DayNightCycle } from './rendering/DayNightCycle';
 
 const app = document.getElementById('app')!;
 const game = new Game(app);
 const input = new Input(game.renderer.domElement);
 
-// Lights
+// Lights + day/night cycle
 const sun = new THREE.DirectionalLight(0xffffff, 1.8);
-sun.position.set(0.5, 1, 0.3).normalize();
 game.scene.add(sun);
-game.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+game.scene.add(sun.target);
+const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+game.scene.add(ambient);
+const dayNight = new DayNightCycle(game.scene, sun, ambient);
 
 // World
 const SEED = 'voxelcraft';
@@ -51,6 +54,7 @@ document.addEventListener('pointerlockchange', () => {
 
 game.onUpdate((dt) => {
   player.update(dt, input);
+  dayNight.update(dt, player.position, streamer.renderDistance);
   hotbar.update(dt, input);
   interaction.update(dt, input, hotbar.selectedBlock);
 });
@@ -60,7 +64,7 @@ game.onRender(() => {
   streamer.update(player.position.x, player.position.z);
   chunkRenderer.update();
   player.applyToCamera(game.camera);
-  debug.update(input, game, player, streamer, chunkRenderer, interaction);
+  debug.update(input, game, player, streamer, chunkRenderer, interaction, dayNight.clock);
   fpsEl.textContent = `FPS: ${game.fps}`;
   input.endFrame();
 });
