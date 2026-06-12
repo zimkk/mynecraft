@@ -50,6 +50,8 @@ export const Tile = {
   Torch: 25,
   /** Tool icons occupy tiles 26..55: 26 + classIndex*5 + tierIndex. */
   ToolBase: 26,
+  /** Block-break crack stages occupy tiles 56..59. */
+  CrackBase: 56,
 } as const;
 
 export interface BlockDef {
@@ -63,10 +65,26 @@ export interface BlockDef {
   tiles: [number, number, number, number, number, number];
   /** Item id dropped when broken; null = nothing. Defaults to the block's own item. */
   drops: string | null;
+  /** Base break time in seconds (Minecraft-style hardness). */
+  hardness: number;
+  /** Tool class that mines this block fastest. */
+  toolClass?: 'pickaxe' | 'axe' | 'shovel' | 'sword';
+  /** If true, drops nothing without the matching tool class at `minHarvest` tier. */
+  requiresTool: boolean;
+  /** Minimum tool harvest level for drops (0 = wood tier, 1 = stone, 2 = iron, 3 = diamond). */
+  minHarvest: number;
   /** Player/entity physics collide with it. Defaults to `solid` (torches: false). */
   collidable: boolean;
   /** Non-cube render model. */
   model?: 'torch';
+}
+
+interface DefExtra {
+  drops?: string | null;
+  hardness?: number;
+  tool?: BlockDef['toolClass'];
+  requiresTool?: boolean;
+  minHarvest?: number;
 }
 
 function def(
@@ -75,7 +93,7 @@ function def(
   solid: boolean,
   transparent: boolean,
   tiles: { all?: number; top?: number; bottom?: number; side?: number },
-  drops?: string | null,
+  extra: DefExtra = {},
 ): BlockDef {
   const side = tiles.side ?? tiles.all ?? 0;
   const top = tiles.top ?? tiles.all ?? side;
@@ -83,34 +101,38 @@ function def(
   return {
     id, name, solid, transparent,
     tiles: [side, side, bottom, top, side, side],
-    drops: drops === undefined ? name.toLowerCase().replace(/ /g, '_') : drops,
+    drops: extra.drops === undefined ? name.toLowerCase().replace(/ /g, '_') : extra.drops,
+    hardness: extra.hardness ?? 1,
+    toolClass: extra.tool,
+    requiresTool: extra.requiresTool ?? false,
+    minHarvest: extra.minHarvest ?? 0,
     collidable: solid,
   };
 }
 
 export const BLOCKS: readonly BlockDef[] = [
-  def(Block.Air, 'Air', false, true, { all: 0 }, null),
-  def(Block.Grass, 'Grass', true, false, { top: Tile.GrassTop, bottom: Tile.Dirt, side: Tile.GrassSide }, 'dirt'),
-  def(Block.Dirt, 'Dirt', true, false, { all: Tile.Dirt }),
-  def(Block.Stone, 'Stone', true, false, { all: Tile.Stone }, 'cobblestone'),
-  def(Block.Sand, 'Sand', true, false, { all: Tile.Sand }),
-  def(Block.Water, 'Water', false, true, { all: Tile.Water }, null),
-  def(Block.Log, 'Log', true, false, { top: Tile.LogEnd, bottom: Tile.LogEnd, side: Tile.LogSide }),
+  def(Block.Air, 'Air', false, true, { all: 0 }, { drops: null, hardness: 0 }),
+  def(Block.Grass, 'Grass', true, false, { top: Tile.GrassTop, bottom: Tile.Dirt, side: Tile.GrassSide }, { drops: 'dirt', hardness: 0.6, tool: 'shovel' }),
+  def(Block.Dirt, 'Dirt', true, false, { all: Tile.Dirt }, { hardness: 0.5, tool: 'shovel' }),
+  def(Block.Stone, 'Stone', true, false, { all: Tile.Stone }, { drops: 'cobblestone', hardness: 1.5, tool: 'pickaxe', requiresTool: true }),
+  def(Block.Sand, 'Sand', true, false, { all: Tile.Sand }, { hardness: 0.5, tool: 'shovel' }),
+  def(Block.Water, 'Water', false, true, { all: Tile.Water }, { drops: null, hardness: 0 }),
+  def(Block.Log, 'Log', true, false, { top: Tile.LogEnd, bottom: Tile.LogEnd, side: Tile.LogSide }, { hardness: 2, tool: 'axe' }),
   // "Fast" leaves: rendered fully opaque so they occlude correctly and stay
   // out of the transparent pass (which has depth-write off and sorts poorly).
-  def(Block.Leaves, 'Leaves', true, false, { all: Tile.Leaves }, null),
-  def(Block.Plank, 'Plank', true, false, { all: Tile.Plank }, 'plank'),
-  def(Block.Glass, 'Glass', true, true, { all: Tile.Glass }, null),
-  def(Block.Cobblestone, 'Cobblestone', true, false, { all: Tile.Cobblestone }),
-  def(Block.CoalOre, 'Coal Ore', true, false, { all: Tile.CoalOre }, 'coal'),
-  def(Block.IronOre, 'Iron Ore', true, false, { all: Tile.IronOre }, 'iron_ore'),
-  def(Block.GoldOre, 'Gold Ore', true, false, { all: Tile.GoldOre }, 'gold_ore'),
-  def(Block.DiamondOre, 'Diamond Ore', true, false, { all: Tile.DiamondOre }, 'diamond'),
-  def(Block.CraftingTable, 'Crafting Table', true, false, { top: Tile.CraftingTableTop, bottom: Tile.Plank, side: Tile.CraftingTableSide }),
-  def(Block.Furnace, 'Furnace', true, false, { all: Tile.FurnaceSide }),
+  def(Block.Leaves, 'Leaves', true, false, { all: Tile.Leaves }, { drops: null, hardness: 0.25, tool: 'sword' }),
+  def(Block.Plank, 'Plank', true, false, { all: Tile.Plank }, { drops: 'plank', hardness: 2, tool: 'axe' }),
+  def(Block.Glass, 'Glass', true, true, { all: Tile.Glass }, { drops: null, hardness: 0.3 }),
+  def(Block.Cobblestone, 'Cobblestone', true, false, { all: Tile.Cobblestone }, { hardness: 2, tool: 'pickaxe', requiresTool: true }),
+  def(Block.CoalOre, 'Coal Ore', true, false, { all: Tile.CoalOre }, { drops: 'coal', hardness: 3, tool: 'pickaxe', requiresTool: true }),
+  def(Block.IronOre, 'Iron Ore', true, false, { all: Tile.IronOre }, { drops: 'iron_ore', hardness: 3, tool: 'pickaxe', requiresTool: true, minHarvest: 1 }),
+  def(Block.GoldOre, 'Gold Ore', true, false, { all: Tile.GoldOre }, { drops: 'gold_ore', hardness: 3, tool: 'pickaxe', requiresTool: true, minHarvest: 2 }),
+  def(Block.DiamondOre, 'Diamond Ore', true, false, { all: Tile.DiamondOre }, { drops: 'diamond', hardness: 3, tool: 'pickaxe', requiresTool: true, minHarvest: 2 }),
+  def(Block.CraftingTable, 'Crafting Table', true, false, { top: Tile.CraftingTableTop, bottom: Tile.Plank, side: Tile.CraftingTableSide }, { hardness: 2.5, tool: 'axe' }),
+  def(Block.Furnace, 'Furnace', true, false, { all: Tile.FurnaceSide }, { hardness: 3.5, tool: 'pickaxe', requiresTool: true }),
   {
     // Torch: targetable (solid for raycast) but walk-through, custom mini model.
-    ...def(Block.Torch, 'Torch', true, true, { all: Tile.Torch }),
+    ...def(Block.Torch, 'Torch', true, true, { all: Tile.Torch }, { hardness: 0.05 }),
     collidable: false,
     model: 'torch',
   },

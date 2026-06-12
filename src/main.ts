@@ -85,7 +85,8 @@ const inventory = new Inventory();
 if (save?.inventory?.length) inventory.loadFrom(save.inventory);
 const entities = new EntityManager(game.scene, world, atlas);
 const hotbar = new Hotbar(document.body, atlas, inventory);
-const interaction = new BlockInteraction(game.scene, world, streamer, player, entities, inventory, hotbar);
+const interaction = new BlockInteraction(game.scene, world, streamer, player, entities, inventory, hotbar, atlas);
+interaction.isCreative = () => creativeMode;
 const debug = new DebugOverlay(document.body);
 if (save) {
   hotbar.select(save.player.hotbarSlot);
@@ -222,10 +223,11 @@ game.start();
   invScreen,
   setCreative: (v: boolean) => { creativeMode = v; },
   breakAt: (x: number, y: number, z: number) => {
-    // Simulate a player break (drops included) for QA.
+    // Simulate a fully-harvested player break (drops included) for QA.
     const id = world.getBlock(x, y, z);
     if (id === 0) return false;
-    interaction['breakBlock']({ x, y, z, nx: 0, ny: 1, nz: 0, id });
+    interaction['finishBreak']({ x, y, z, nx: 0, ny: 1, nz: 0, id }, true, false);
     return true;
   },
+  interaction,
 };

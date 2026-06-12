@@ -174,6 +174,17 @@ function toolPart(cls: string, x: number, y: number): 'head' | 'handle' | null {
   return null;
 }
 
+// Crack stages (tiles CrackBase..CrackBase+3): denser dark fissures per stage.
+for (let stage = 0; stage < 4; stage++) {
+  PAINTERS[Tile.CrackBase + stage] = (x, y) => {
+    // Deterministic branching cracks radiating from the tile center.
+    const h = (Math.imul(x * 374761393 + y * 668265263, 1274126177) >>> 16) & 0xff;
+    const dist = Math.abs(x - 8) + Math.abs(y - 8);
+    const threshold = 30 + stage * 28 - dist * 4;
+    return h < threshold ? [15, 15, 15, 200] : [0, 0, 0, 0];
+  };
+}
+
 for (let c = 0; c < TOOL_CLASSES.length; c++) {
   for (let t = 0; t < TOOL_TIERS.length; t++) {
     const cls = TOOL_CLASSES[c];

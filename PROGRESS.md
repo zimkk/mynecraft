@@ -88,6 +88,13 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - **Verify (scripted):** log→planks→sticks→wooden pickaxe all match; offset 2×2 in 3×3 works; invalid pattern → no output; crafting consumed exactly one log. Torch/table/furnace render in-world.
 - Deferred: chest (needs a container framework; can ride along with a later phase).
 
+## Phase 15 — Tools, Materials & Mining Rules ✅
+- Blocks define hardness, preferred tool class, `requiresTool`, and min harvest level (iron needs ≥ stone pick, gold/diamond ≥ iron pick).
+- Break time = hardness × 1.5 / toolSpeed with the right tool (and sufficient tier), hardness × 5 otherwise; insufficient harvest level also drops nothing. Swords shred leaves; axes speed wood; shovels speed dirt/sand.
+- 4-stage crack overlay (procedural atlas tiles) on the targeted block while mining; progress resets when the target changes.
+- Tools lose 1 durability per block and are removed at 0 (durability bar shows in slots). Creative: instant break, no durability, no consumption.
+- **Verify (scripted):** stone barehand 7.5 s/no drop; wooden pick 1.13 s/drop/-1 durability; iron ore + wooden pick 7.5 s/NO drop; + stone pick 1.13 s/drop; tool at 1 durability broke and was removed.
+
 ## Decisions & known issues
 - Phases were verified in-browser (screenshots + scripted checks via the `window.vox` dev hook).
 - Water is rendered as a transparent pass without surface animation; swimming physics not implemented (water is non-solid — you sink/walk through it).
