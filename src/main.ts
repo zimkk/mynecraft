@@ -16,6 +16,7 @@ import { SaveManager, SaveData, SAVE_VERSION } from './save/SaveManager';
 import { Inventory } from './items/Inventory';
 import { EntityManager } from './entities/EntityManager';
 import { InventoryScreen } from './ui/InventoryScreen';
+import { FurnaceManager } from './world/Furnace';
 import { Menu, loadRenderDistance } from './ui/Menu';
 
 const app = document.getElementById('app')!;
@@ -109,6 +110,7 @@ const saveManager = new SaveManager((): SaveData => ({
   },
   time: dayNight.time,
   inventory: inventory.toJSON(),
+  furnaces: furnaces.toJSON(),
 }));
 
 // Game mode: runtime flag for now; Phase 17 wires full survival/creative rules.
@@ -130,14 +132,32 @@ const invScreen = new InventoryScreen(document.body, atlas, inventory, {
   },
 });
 
+// Furnace block entities (smelting continues on wall time, even paused).
+const furnaces = new FurnaceManager();
+if (save?.furnaces?.length) furnaces.loadFrom(save.furnaces);
+
 // Right-clicking interactive blocks opens their UI instead of placing.
-interaction.onUseBlock = (id) => {
+interaction.onUseBlock = (id, x, y, z) => {
   if (id === Block.CraftingTable) {
     invScreen.openScreen(3);
     input.unlock();
     return true;
   }
+  if (id === Block.Furnace) {
+    invScreen.openFurnace(furnaces.getOrCreate(x, y, z));
+    input.unlock();
+    return true;
+  }
   return false;
+};
+
+// Breaking a furnace spills its contents.
+interaction.onBlockBroken = (id, x, y, z) => {
+  if (id === Block.Furnace) {
+    for (const stack of furnaces.remove(x, y, z)) {
+      entities.dropItem(stack, new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5));
+    }
+  }
 };
 
 // Pause menu: shown whenever the pointer is unlocked (Esc opens it).
@@ -199,6 +219,9 @@ game.onUpdate((dt) => {
 const fpsEl = document.getElementById('fps')!;
 game.onRender((_alpha, dt) => {
   saveManager.tick(dt);
+  // Furnaces run on wall time so smelting continues while UIs are open.
+  furnaces.tick(dt);
+  invScreen.tickFurnaceUI();
   streamer.update(player.position.x, player.position.z);
   chunkRenderer.update();
   player.applyToCamera(game.camera);
@@ -230,4 +253,5 @@ game.start();
     return true;
   },
   interaction,
+  furnaces,
 };

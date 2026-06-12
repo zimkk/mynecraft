@@ -1,6 +1,7 @@
 import { ItemStack } from '../items/ItemRegistry';
+import { FurnaceState } from '../world/Furnace';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface SaveData {
   version: number;
@@ -17,17 +18,24 @@ export interface SaveData {
   time: number;
   /** v2+: player inventory slots. */
   inventory: Array<ItemStack | null>;
+  /** v3+: furnace block-entity states keyed by "x,y,z". */
+  furnaces: Array<[string, FurnaceState]>;
 }
 
 /**
  * Upgrade older saves in place; returns null if the save is unusable.
- * v1 → v2: inventory didn't exist yet — start with an empty one.
+ * v1 → v2: inventory didn't exist yet — start empty.
+ * v2 → v3: furnaces didn't exist yet — start empty.
  */
 function migrate(data: SaveData): SaveData | null {
   if (typeof data.seed !== 'string' || !Array.isArray(data.edits)) return null;
   if (data.version === 1) {
     data.inventory = [];
     data.version = 2;
+  }
+  if (data.version === 2) {
+    data.furnaces = [];
+    data.version = 3;
   }
   if (data.version !== SAVE_VERSION) return null;
   return data;

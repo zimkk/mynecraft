@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Inventory, HOTBAR_SIZE, INVENTORY_SIZE } from '../items/Inventory';
 import { ItemStack, allItems, itemDef, makeStack, maxStackOf, stacksMatch } from '../items/ItemRegistry';
 import { matchRecipe } from '../crafting/Recipes';
+import { FurnaceState } from '../world/Furnace';
 import { renderSlotContents, iconURL } from './Hotbar';
 
 export interface InventoryScreenCallbacks {
@@ -13,9 +14,13 @@ export interface InventoryScreenCallbacks {
   requestClose: () => void;
 }
 
-// Virtual slot indices: 0..35 inventory, 100..108 craft grid, 200 result.
+// Virtual slot indices: 0..35 inventory, 100..108 craft grid, 200 result,
+// 300/301/302 furnace input/fuel/output.
 const CRAFT_BASE = 100;
 const RESULT_SLOT = 200;
+const FURNACE_INPUT = 300;
+const FURNACE_FUEL = 301;
+const FURNACE_OUTPUT = 302;
 
 /**
  * Inventory screen (toggle E): crafting grid (2×2 standalone, 3×3 at a
@@ -27,6 +32,12 @@ export class InventoryScreen {
   private cursorStack: ItemStack | null = null;
   /** Always 3×3 storage; in 2×2 mode the outer cells are hidden (and empty). */
   private readonly craftSlots: Array<ItemStack | null> = new Array(9).fill(null);
+  /** Open furnace (UI shows its slots live); null outside furnace mode. */
+  private furnaceState: FurnaceState | null = null;
+  private craftRowEl!: HTMLElement;
+  private furnaceRowEl!: HTMLElement;
+  private smeltFillEl!: HTMLElement;
+  private flameFillEl!: HTMLElement;
   private readonly root: HTMLElement;
   private readonly cursorEl: HTMLElement;
   private readonly slotEls = new Map<number, HTMLElement>();
@@ -70,6 +81,30 @@ export class InventoryScreen {
     craftRow.appendChild(arrow);
     craftRow.appendChild(this.makeSlot(RESULT_SLOT));
     panel.appendChild(craftRow);
+    this.craftRowEl = craftRow;
+
+    // Furnace area: input over fuel, flame + progress indicators, output.
+    const furnRow = document.createElement('div');
+    furnRow.className = 'craft-row furnace-row';
+    furnRow.style.display = 'none';
+    const ioCol = document.createElement('div');
+    ioCol.className = 'furnace-io';
+    ioCol.appendChild(this.makeSlot(FURNACE_INPUT));
+    const flame = document.createElement('div');
+    flame.className = 'furnace-flame';
+    this.flameFillEl = document.createElement('div');
+    flame.appendChild(this.flameFillEl);
+    ioCol.appendChild(flame);
+    ioCol.appendChild(this.makeSlot(FURNACE_FUEL));
+    furnRow.appendChild(ioCol);
+    const smeltBar = document.createElement('div');
+    smeltBar.className = 'smelt-bar';
+    this.smeltFillEl = document.createElement('div');
+    smeltBar.appendChild(this.smeltFillEl);
+    furnRow.appendChild(smeltBar);
+    furnRow.appendChild(this.makeSlot(FURNACE_OUTPUT));
+    panel.appendChild(furnRow);
+    this.furnaceRowEl = furnRow;
 
     // Main 3×9 grid: inventory indices 9..35.
     const mainGrid = document.createElement('div');
@@ -154,12 +189,18 @@ export class InventoryScreen {
       const r = matchRecipe(this.craftSlots, 3);
       return r ? makeStack(r.id, r.count) : null;
     }
+    if (index === FURNACE_INPUT) return this.furnaceState?.input ?? null;
+    if (index === FURNACE_FUEL) return this.furnaceState?.fuel ?? null;
+    if (index === FURNACE_OUTPUT) return this.furnaceState?.output ?? null;
     if (index >= CRAFT_BASE) return this.craftSlots[index - CRAFT_BASE];
     return this.inventory.get(index);
   }
 
   private setSlot(index: number, stack: ItemStack | null): void {
     if (index === RESULT_SLOT) return;
+    if (index === FURNACE_INPUT) { if (this.furnaceState) this.furnaceState.input = stack; return; }
+    if (index === FURNACE_FUEL) { if (this.furnaceState) this.furnaceState.fuel = stack; return; }
+    if (index === FURNACE_OUTPUT) { if (this.furnaceState) this.furnaceState.output = stack; return; }
     if (index >= CRAFT_BASE) this.craftSlots[index - CRAFT_BASE] = stack;
     else this.inventory.set(index, stack);
   }
@@ -177,6 +218,25 @@ export class InventoryScreen {
 
   /** Minecraft-style slot interaction state machine. */
   private onSlotClick(index: number, button: number, shift: boolean): void {
+    // Furnace output: take-only.
+    if (index === FURNACE_OUTPUT) {
+      const out = this.getSlot(FURNACE_OUTPUT);
+      if (!out) return;
+      if (shift) {
+        const leftover = this.inventory.add(out);
+        this.setSlot(FURNACE_OUTPUT, leftover > 0 ? { ...out, count: leftover } : null);
+      } else if (!this.cursorStack) {
+        this.cursorStack = out;
+        this.setSlot(FURNACE_OUTPUT, null);
+      } else if (stacksMatch(this.cursorStack, out) &&
+                 this.cursorStack.count + out.count <= maxStackOf(out.id)) {
+        this.cursorStack.count += out.count;
+        this.setSlot(FURNACE_OUTPUT, null);
+      }
+      this.refresh();
+      return;
+    }
+
     // Result slot: take crafted output.
     if (index === RESULT_SLOT) {
       const result = this.getSlot(RESULT_SLOT);
@@ -288,7 +348,10 @@ export class InventoryScreen {
   /** mode 2 = personal 2×2 grid; mode 3 = crafting table 3×3. */
   openScreen(mode: 2 | 3 = 2): void {
     this.open = true;
+    this.furnaceState = null;
     this.titleEl.textContent = mode === 3 ? 'Crafting Table' : 'Inventory';
+    this.craftRowEl.style.display = 'flex';
+    this.furnaceRowEl.style.display = 'none';
     // Hide the outer craft cells in 2×2 mode (they are empty by invariant).
     for (let i = 0; i < 9; i++) {
       const x = i % 3;
@@ -298,6 +361,29 @@ export class InventoryScreen {
     }
     this.root.style.display = 'flex';
     this.refresh();
+  }
+
+  /** Open with a live furnace's slots instead of the crafting grid. */
+  openFurnace(state: FurnaceState): void {
+    this.open = true;
+    this.furnaceState = state;
+    this.titleEl.textContent = 'Furnace';
+    this.craftRowEl.style.display = 'none';
+    this.furnaceRowEl.style.display = 'flex';
+    this.root.style.display = 'flex';
+    this.refresh();
+  }
+
+  /** Live indicator refresh while a furnace is open (called from the render loop). */
+  tickFurnaceUI(): void {
+    if (!this.open || !this.furnaceState) return;
+    const s = this.furnaceState;
+    this.smeltFillEl.style.width = `${Math.round(s.progress * 100)}%`;
+    this.flameFillEl.style.height = `${s.fuelTotal > 0 ? Math.round((s.fuelLeft / s.fuelTotal) * 100) : 0}%`;
+    // Slot contents change as items smelt — re-render the furnace slots only.
+    for (const idx of [FURNACE_INPUT, FURNACE_FUEL, FURNACE_OUTPUT]) {
+      renderSlotContents(this.slotEls.get(idx)!, this.getSlot(idx), this.atlas);
+    }
   }
 
   closeScreen(): void {
@@ -317,6 +403,8 @@ export class InventoryScreen {
         this.craftSlots[i] = null;
       }
     }
+    // Furnace contents stay with the furnace block.
+    this.furnaceState = null;
     this.cursorEl.innerHTML = '';
   }
 

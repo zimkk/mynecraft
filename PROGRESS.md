@@ -95,6 +95,14 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - Tools lose 1 durability per block and are removed at 0 (durability bar shows in slots). Creative: instant break, no durability, no consumption.
 - **Verify (scripted):** stone barehand 7.5 s/no drop; wooden pick 1.13 s/drop/-1 durability; iron ore + wooden pick 7.5 s/NO drop; + stone pick 1.13 s/drop; tool at 1 durability broke and was removed.
 
+## Phase 16 — Furnace & Smelting ✅
+- Furnace block entities keyed by world position (`FurnaceManager`), ticked on **wall-clock time** from the render loop — smelting continues while the UI is open, while paused, and while you walk away.
+- Recipes: iron ore→ingot, gold ore→ingot, sand→glass, cobblestone→stone, log→coal (charcoal). 5 s per item; progress decays without fuel/input.
+- Fuel values: coal = 8 smelts, log/planks = 1.5, sticks = 0.5. Output stacks; input/fuel consumed correctly.
+- Furnace UI (right-click): input over fuel with a flame burn-down indicator, smelt progress bar, take-only output slot; shift-click works for all furnace slots.
+- Breaking a furnace spills its contents as item drops. Save bumped to **v3** (furnace states) with v2→v3 migration.
+- **Verify (scripted):** 3 iron ore + 1 coal → 3 iron ingots in 15.2 s with no UI open; fuel decremented 15 s of 40; input emptied.
+
 ## Decisions & known issues
 - Phases were verified in-browser (screenshots + scripted checks via the `window.vox` dev hook).
 - Water is rendered as a transparent pass without surface animation; swimming physics not implemented (water is non-solid — you sink/walk through it).
