@@ -113,6 +113,15 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - **Verify (scripted + visual):** damage 5 → 15 HP; eat capped at 20; lethal damage → death screen, inventory spilled; respawn restored 20/20 at spawn; HUD renders all three rows.
 - Known simplification: water has no swim physics yet (normal gravity underwater).
 
+## Phase 18 — Mobs ✅
+- Entity framework: boxy multi-part models (Three.js groups) with leg-swing animation and red hurt flash; voxel AABB physics (axis-separated, same approach as the player) with auto-jump when walking into a 1-block step.
+- **Passive** pigs & sheep: idle/wander state machine, flee when hit, drop raw porkchops / wool. **Hostile** zombies: chase within 18 blocks (greedy steering + jumps), attack on contact (3 dmg, 1.1 s cooldown, knocks the player back), burn in daylight unless under a roof.
+- Spawning: attempts every 2 s in a 20-44 block ring at surface height — zombies at night (cap 10), animals by day (cap 8); despawn beyond 80 blocks. Mobs are not saved; the world repopulates on load.
+- Combat: LMB raycast-marches the look ray against mob AABBs (priority over mining); damage = held tool damage (swords highest); both sides take knockback; tools lose durability on hits.
+- New: wool block + item, raw/cooked porkchop foods, raw→cooked smelting recipe; player knockback impulse support.
+- **Verify (scripted):** zombie chased and damaged the player (killed the half-health QA player — death flow fired correctly); zombie burned to death in daylight; dead pig dropped loot; melee ray hit a pig for 4 (10→6), triggering flee + knockback −7 z; level ray correctly passes OVER a 0.9-block pig.
+- Note: an apparent FPS drop during QA was confirmed to be browser rAF-throttling of the occluded preview window (120 mob updates = 0.3 ms CPU; 65 draw calls).
+
 ## Decisions & known issues
 - Phases were verified in-browser (screenshots + scripted checks via the `window.vox` dev hook).
 - Water is rendered as a transparent pass without surface animation; swimming physics not implemented (water is non-solid — you sink/walk through it).

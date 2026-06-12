@@ -65,6 +65,11 @@ export class DayNightCycle {
     this.fog.far = viewBlocks * 0.98;
   }
 
+  /** True while the sun is up (used by mob spawning/burning). */
+  get isDay(): boolean {
+    return Math.sin((this.time - 0.25) * Math.PI * 2) > 0.05;
+  }
+
   /** Human-readable clock for the debug overlay, e.g. "13:30". */
   get clock(): string {
     const h = Math.floor(this.time * 24);

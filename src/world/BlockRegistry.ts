@@ -18,6 +18,7 @@ export enum Block {
   CraftingTable = 15,
   Furnace = 16,
   Torch = 17,
+  Wool = 18,
 }
 
 /** Atlas tile slots (filled by the runtime-generated texture atlas in /rendering). */
@@ -53,6 +54,9 @@ export const Tile = {
   /** Block-break crack stages occupy tiles 56..59. */
   CrackBase: 56,
   Apple: 60,
+  Wool: 61,
+  RawPorkchop: 62,
+  CookedPorkchop: 63,
 } as const;
 
 export interface BlockDef {
@@ -142,6 +146,7 @@ export const BLOCKS: readonly BlockDef[] = [
     collidable: false,
     model: 'torch',
   },
+  def(Block.Wool, 'Wool', true, false, { all: Tile.Wool }, { hardness: 0.8 }),
 ];
 
 export function blockDef(id: number): BlockDef {

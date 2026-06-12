@@ -18,6 +18,7 @@ import { EntityManager } from './entities/EntityManager';
 import { InventoryScreen } from './ui/InventoryScreen';
 import { FurnaceManager } from './world/Furnace';
 import { StatsHud } from './ui/StatsHud';
+import { MobManager } from './entities/MobManager';
 import { itemDef } from './items/ItemRegistry';
 import { Menu, loadRenderDistance } from './ui/Menu';
 
@@ -171,6 +172,17 @@ const invScreen = new InventoryScreen(document.body, atlas, inventory, {
   },
 });
 
+// Mobs: spawned around the player (zombies at night, animals by day).
+const mobs = new MobManager(game.scene, world, entities);
+const mobCtx = {
+  playerPos: player.position,
+  isDay: true,
+  attackPlayer: (mob: import('./entities/Mob').Mob) => {
+    player.damage(mob.def.attackDamage ?? 2);
+    player.knockback(player.position.x - mob.position.x, player.position.z - mob.position.z);
+  },
+};
+
 // Furnace block entities (smelting continues on wall time, even paused).
 const furnaces = new FurnaceManager();
 if (save?.furnaces?.length) furnaces.loadFrom(save.furnaces);
@@ -255,6 +267,23 @@ game.onUpdate((dt) => {
   dayNight.update(dt, player.position, streamer.renderDistance);
   hotbar.update(dt, input);
 
+  // Melee: clicking a mob attacks it (and takes priority over mining).
+  let hitMob = false;
+  if (input.buttonJustPressed(0) && !player.dead) {
+    const mob = mobs.raycastMob(player.eyePosition, player.lookDirection, 3.5);
+    if (mob) {
+      hitMob = true;
+      const held = hotbar.selectedStack;
+      const tool = held ? itemDef(held.id)?.tool : undefined;
+      mob.hurt(tool?.damage ?? 1, player.position);
+      if (tool && held?.durability !== undefined && !player.creative) {
+        held.durability--;
+        if (held.durability <= 0) inventory.set(hotbar.selected, null);
+        else inventory.notify();
+      }
+    }
+  }
+
   // Eating: hold RMB with food selected (1.2 s), then restore hunger.
   const held = hotbar.selectedStack;
   const food = held ? itemDef(held.id)?.food : undefined;
@@ -267,9 +296,11 @@ game.onUpdate((dt) => {
     }
   } else {
     eatTimer = 0;
-    interaction.update(dt, input);
+    if (!hitMob) interaction.update(dt, input);
   }
 
+  mobCtx.isDay = dayNight.isDay;
+  mobs.update(dt, mobCtx);
   entities.update(dt, player.position, inventory);
 });
 
@@ -312,4 +343,7 @@ game.start();
   },
   interaction,
   furnaces,
+  mobs,
+  game,
+  chunkRenderer,
 };

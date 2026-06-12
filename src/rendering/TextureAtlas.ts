@@ -186,6 +186,28 @@ PAINTERS[Tile.Apple] = (x, y, rng) => {
   return [200 + n + hi, 40 + n, 35 + n, 255];
 };
 
+PAINTERS[Tile.Wool] = (x, y, rng) => {
+  // Curly white fleece: bright base with wavy shadow strands.
+  const wave = Math.sin(x * 1.7 + y * 0.9) + Math.cos(y * 1.5 - x * 0.6);
+  const n = (rng() - 0.5) * 14;
+  const base = wave > 0.9 ? 205 : 235;
+  return [base + n, base + n, base + n - 5, 255];
+};
+
+function porkchop(cooked: boolean): TilePainter {
+  return (x, y, rng) => {
+    const dx = x - 8;
+    const dy = y - 8;
+    if (dx * dx * 0.7 + dy * dy > 30) return [0, 0, 0, 0];
+    const n = (rng() - 0.5) * 20;
+    // Fat rind on the left edge.
+    if (dx < -3) return [245 + n, 230 + n, 210 + n, 255];
+    return cooked ? [165 + n, 105 + n, 65 + n, 255] : [235 + n, 125 + n, 130 + n, 255];
+  };
+}
+PAINTERS[Tile.RawPorkchop] = porkchop(false);
+PAINTERS[Tile.CookedPorkchop] = porkchop(true);
+
 // Crack stages (tiles CrackBase..CrackBase+3): denser dark fissures per stage.
 for (let stage = 0; stage < 4; stage++) {
   PAINTERS[Tile.CrackBase + stage] = (x, y) => {

@@ -43,6 +43,9 @@ export class Player {
   onDamage?: (amount: number) => void;
   onDeath?: () => void;
 
+  /** Knockback impulse (from mob hits), decays quickly. */
+  private kbX = 0;
+  private kbZ = 0;
   private fallDistance = 0;
   private exhaustion = 0;
   private regenTimer = 0;
@@ -77,6 +80,14 @@ export class Player {
       this.dead = true;
       this.onDeath?.();
     }
+  }
+
+  /** Shove the player horizontally (mob attacks) with a small hop. */
+  knockback(dirX: number, dirZ: number, strength = 7): void {
+    const len = Math.hypot(dirX, dirZ) || 1;
+    this.kbX = (dirX / len) * strength;
+    this.kbZ = (dirZ / len) * strength;
+    if (this.onGround) this.velocity.y = 4;
   }
 
   /** Eat food: restores hunger and saturation. */
@@ -142,8 +153,11 @@ export class Player {
     // Rotate input by yaw: forward is -Z in camera space.
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
-    this.velocity.x = (mx * cos - mz * sin) * speed;
-    this.velocity.z = (mz * cos + mx * sin) * speed;
+    this.velocity.x = (mx * cos - mz * sin) * speed + this.kbX;
+    this.velocity.z = (mz * cos + mx * sin) * speed + this.kbZ;
+    const kbDecay = Math.max(0, 1 - 6 * dt);
+    this.kbX *= kbDecay;
+    this.kbZ *= kbDecay;
 
     // --- Vertical ---
     if (this.flying) {

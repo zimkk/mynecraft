@@ -10,6 +10,7 @@ const SMELT_RECIPES: Record<string, string> = {
   sand: 'glass',
   cobblestone: 'stone',
   log: 'coal', // charcoal, simplified to coal
+  raw_porkchop: 'cooked_porkchop',
 };
 
 /** fuel item id → burn seconds. */

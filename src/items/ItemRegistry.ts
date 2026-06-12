@@ -81,6 +81,9 @@ registerBlockItem(Block.Torch, 'torch', 'Torch');
 
 // Food.
 register({ id: 'apple', name: 'Apple', type: 'food', maxStack: 64, icon: Tile.Apple, food: { hunger: 4, saturation: 2.4 } });
+register({ id: 'raw_porkchop', name: 'Raw Porkchop', type: 'food', maxStack: 64, icon: Tile.RawPorkchop, food: { hunger: 3, saturation: 1.8 } });
+register({ id: 'cooked_porkchop', name: 'Cooked Porkchop', type: 'food', maxStack: 64, icon: Tile.CookedPorkchop, food: { hunger: 8, saturation: 12.8 } });
+registerBlockItem(Block.Wool, 'wool', 'Wool');
 
 // ---- Tools: one item per class × tier, icons from the atlas tool grid ----
 
