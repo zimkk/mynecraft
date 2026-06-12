@@ -147,10 +147,18 @@ export class Player {
     const len = Math.hypot(mx, mz);
     if (len > 0) { mx /= len; mz /= len; }
 
+    // Swimming: body submerged in water (checked at chest height).
+    const inWaterBody = this.world.getBlock(
+      Math.floor(this.position.x),
+      Math.floor(this.position.y + 0.9),
+      Math.floor(this.position.z),
+    ) === Block.Water;
+
     const sprint = input.isDown('ControlLeft') || input.isDown('ShiftLeft');
-    const speed = this.flying
+    let speed = this.flying
       ? (sprint ? FLY_SPRINT_SPEED : FLY_SPEED)
       : (sprint ? SPRINT_SPEED : WALK_SPEED);
+    if (inWaterBody && !this.flying) speed *= 0.55; // water drag
 
     // Rotate input by yaw: forward is -Z in camera space.
     const sin = Math.sin(this.yaw);
@@ -166,6 +174,11 @@ export class Player {
       this.velocity.y = 0;
       if (input.isDown('Space')) this.velocity.y = speed;
       if (input.isDown('KeyC')) this.velocity.y = -speed;
+    } else if (inWaterBody) {
+      // Swimming: hold Space to rise, otherwise sink slowly. Buoyancy caps
+      // both directions well below air speeds.
+      this.velocity.y += (input.isDown('Space') ? 16 : GRAVITY * 0.25) * dt;
+      this.velocity.y = Math.max(-4, Math.min(3.5, this.velocity.y));
     } else {
       this.velocity.y += GRAVITY * dt;
       if (this.velocity.y < -60) this.velocity.y = -60; // terminal velocity
@@ -191,7 +204,9 @@ export class Player {
       }
       this.fallDistance = 0;
     }
-    if (this.flying) this.fallDistance = 0;
+    // Water and flight are soft landings — never bank fall distance there
+    // (wading ashore after falling into a lake must not deal phantom damage).
+    if (this.flying || inWaterBody) this.fallDistance = 0;
 
     this.updateSurvivalStats(dt, sprint && len > 0);
 

@@ -89,9 +89,39 @@ export class Input {
     return w;
   }
 
-  /** Call once at the end of every rendered frame. */
+  /**
+   * Call at the end of every FIXED update tick (not per rendered frame):
+   * the fixed-timestep loop can run twice in one frame, and clearing only
+   * per-frame made a single press fire in both ticks (e.g. one Space press
+   * reading as a double-tap).
+   */
   endFrame(): void {
     this.keysJustPressed.clear();
     this.buttonsJustPressed.clear();
+  }
+
+  /** Drop all buffered one-shot input (called when pausing/resuming so
+   * presses made while a menu was open don't fire on the first live tick). */
+  clearTransient(): void {
+    this.keysJustPressed.clear();
+    this.buttonsJustPressed.clear();
+    this.buttons.clear();
+    this.mouseDX = 0;
+    this.mouseDY = 0;
+    this.wheel = 0;
+  }
+
+  /**
+   * Safely request pointer lock. Browsers throw/reject during the ~1 s
+   * cooldown after Esc releases the lock — report that via onFail instead
+   * of an unhandled rejection, so the caller can fall back to the menu.
+   */
+  requestLock(onFail?: () => void): void {
+    try {
+      const result = this.element.requestPointerLock() as unknown;
+      if (result instanceof Promise) result.catch(() => onFail?.());
+    } catch {
+      onFail?.();
+    }
   }
 }

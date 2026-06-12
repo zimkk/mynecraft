@@ -150,7 +150,7 @@ const worldSpawn = new THREE.Vector3(
 const statsHud = new StatsHud(document.body, () => {
   statsHud.showDeath(false);
   player.respawn(worldSpawn);
-  game.renderer.domElement.requestPointerLock();
+  input.requestLock(() => { menu.visible = true; });
 });
 player.onDamage = () => statsHud.flash();
 player.onDeath = () => {
@@ -179,7 +179,9 @@ const invScreen = new InventoryScreen(document.body, atlas, inventory, {
   isCreative: () => creativeMode,
   requestClose: () => {
     invScreen.closeScreen();
-    game.renderer.domElement.requestPointerLock();
+    // If the browser refuses (Esc cooldown), fall back to the pause menu
+    // instead of a stuck "nothing is open but the game is paused" state.
+    input.requestLock(() => { menu.visible = true; });
   },
 });
 
@@ -248,7 +250,7 @@ player.onDamage = () => {
 const menu = new Menu(
   document.body,
   {
-    resume: () => game.renderer.domElement.requestPointerLock(),
+    resume: () => input.requestLock(),
     setRenderDistance: (chunks) => {
       streamer.renderDistance = chunks;
     },
@@ -282,12 +284,17 @@ let eatTimer = 0;
 
 game.onUpdate((dt) => {
   // Game pauses (player/physics frozen) while any UI owns the pointer.
-  if (!input.isLocked) return;
+  // Discard input buffered during the pause so nothing fires on resume.
+  if (!input.isLocked) {
+    input.clearTransient();
+    return;
+  }
 
   // E opens the inventory (released lock keeps the pause menu hidden).
   if (input.justPressed('KeyE')) {
     invScreen.openScreen();
     input.unlock();
+    input.clearTransient();
     return;
   }
   // Q tosses one of the selected item.
@@ -325,9 +332,13 @@ game.onUpdate((dt) => {
   }
 
   // Eating: hold RMB with food selected (1.2 s), then restore hunger.
+  // Interactive blocks win over eating so a snack doesn't lock you out of
+  // crafting tables and furnaces.
+  const targetId = interaction.target?.id;
+  const targetingInteractive = targetId === Block.CraftingTable || targetId === Block.Furnace;
   const held = hotbar.selectedStack;
   const food = held ? itemDef(held.id)?.food : undefined;
-  if (food && input.buttonDown(2) && !player.creative && player.hunger < 20) {
+  if (food && input.buttonDown(2) && !player.creative && player.hunger < 20 && !targetingInteractive) {
     eatTimer += dt;
     if (eatTimer >= 1.2) {
       eatTimer = 0;
@@ -346,6 +357,10 @@ game.onUpdate((dt) => {
   mobCtx.isDay = dayNight.isDay;
   mobs.update(dt, mobCtx);
   entities.update(dt, player.position, inventory);
+
+  // One-shot input is consumed per fixed tick — the loop can run twice in a
+  // single rendered frame, and clearing per-frame double-fired key presses.
+  input.endFrame();
 });
 
 const fpsEl = document.getElementById('fps')!;
@@ -359,9 +374,8 @@ game.onRender((_alpha, dt) => {
   chunkRenderer.update();
   player.applyToCamera(game.camera);
   statsHud.update(dt, player);
-  debug.update(input, game, player, streamer, chunkRenderer, interaction, dayNight.clock);
+  debug.update(game, player, streamer, chunkRenderer, interaction, dayNight.clock);
   fpsEl.textContent = `FPS: ${game.fps}`;
-  input.endFrame();
 });
 
 // Set sun/sky/fog once so the world looks right behind the start menu.

@@ -137,6 +137,14 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - Final QA: typecheck clean, zero console errors/warnings, settings live-apply verified (sensitivity slider → player), 164-180 FPS at render distance 12 in the dev preview.
 - Balance: progression wood→stone→iron→diamond enforced by harvest levels; coal 8-smelt fuel; zombie 3 dmg / 1.1 s; caps 10 hostile / 8 passive.
 
+## Controls & interaction fix pass ✅
+1. **One-shot input double/stale firing:** `justPressed`/`buttonJustPressed` were cleared once per rendered frame, but the fixed-timestep loop can run twice per frame — a single Space press could read as a double-tap (random flight toggles in creative), Q dropped two items, melee swung twice. Now cleared at the end of each fixed tick; input buffered while paused is discarded (`clearTransient`), so nothing fires and the camera doesn't jerk on resume.
+2. **Phantom fall damage via water:** fall distance kept accumulating while falling into water, then applied on the first solid landing when wading ashore. Water (and flight) now zero fall distance.
+3. **No swimming:** deep water was inescapable. Added water physics — body submerged: hold Space to rise (cap 3.5), slow sink (cap −4), reduced gravity, 0.55× move speed.
+4. **Unhandled pointer-lock failures:** re-locking during the browser's post-Esc cooldown threw unhandled rejections and could leave a paused-but-menuless state. All lock requests now go through `Input.requestLock()` with a fallback that opens the pause menu.
+5. **Food blocked crafting tables/furnaces:** holding food swallowed right-click entirely; interactive block targets now take priority over eating.
+6. **F3 misfiring:** the debug toggle polled `justPressed` from the render loop, where ticks may already have consumed it — moved to a dedicated keydown listener (also works while paused).
+
 ## Decisions & known issues
 - Phases were verified in-browser (screenshots + scripted checks via the `window.vox` dev hook).
 - Water is rendered as a transparent pass without surface animation; swimming physics not implemented (water is non-solid — you sink/walk through it).

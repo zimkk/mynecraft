@@ -5,7 +5,6 @@ import { ChunkRenderer } from '../rendering/ChunkRenderer';
 import { BlockInteraction } from '../player/BlockInteraction';
 import { blockDef } from '../world/BlockRegistry';
 import { CHUNK_SIZE } from '../world/Chunk';
-import { Input } from '../core/Input';
 
 const CARDINALS = ['South (+Z)', 'South-West', 'West (-X)', 'North-West', 'North (-Z)', 'North-East', 'East (+X)', 'South-East'];
 
@@ -20,10 +19,18 @@ export class DebugOverlay {
     this.el.className = 'hud';
     this.el.style.display = 'none';
     container.appendChild(this.el);
+
+    // Own listener (not the per-tick Input buffer): the overlay updates in
+    // the render loop, where one-shot input state may already be consumed.
+    window.addEventListener('keydown', (e) => {
+      if (e.code !== 'F3') return;
+      e.preventDefault();
+      this.visible = !this.visible;
+      this.el.style.display = this.visible ? 'block' : 'none';
+    });
   }
 
   update(
-    input: Input,
     game: Game,
     player: Player,
     streamer: ChunkStreamer,
@@ -31,10 +38,6 @@ export class DebugOverlay {
     interaction: BlockInteraction,
     clock?: string,
   ): void {
-    if (input.justPressed('F3')) {
-      this.visible = !this.visible;
-      this.el.style.display = this.visible ? 'block' : 'none';
-    }
     if (!this.visible) return;
 
     const p = player.position;
