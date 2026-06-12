@@ -75,6 +75,49 @@ register({ id: 'stick', name: 'Stick', type: 'material', maxStack: 64, icon: Til
 register({ id: 'iron_ingot', name: 'Iron Ingot', type: 'material', maxStack: 64, icon: Tile.IronIngot });
 register({ id: 'gold_ingot', name: 'Gold Ingot', type: 'material', maxStack: 64, icon: Tile.GoldIngot });
 
+registerBlockItem(Block.CraftingTable, 'crafting_table', 'Crafting Table');
+registerBlockItem(Block.Furnace, 'furnace', 'Furnace');
+registerBlockItem(Block.Torch, 'torch', 'Torch');
+
+// ---- Tools: one item per class × tier, icons from the atlas tool grid ----
+
+const TOOL_CLASS_LIST: ToolClass[] = ['pickaxe', 'axe', 'shovel', 'sword', 'hoe'];
+const TOOL_TIER_LIST: ToolTier[] = ['wood', 'stone', 'iron', 'gold', 'diamond'];
+
+const TIER_STATS: Record<ToolTier, { speed: number; harvestLevel: number; durability: number; prefix: string }> = {
+  wood: { speed: 2, harvestLevel: 0, durability: 60, prefix: 'Wooden' },
+  stone: { speed: 4, harvestLevel: 1, durability: 132, prefix: 'Stone' },
+  iron: { speed: 6, harvestLevel: 2, durability: 251, prefix: 'Iron' },
+  gold: { speed: 12, harvestLevel: 0, durability: 33, prefix: 'Golden' },
+  diamond: { speed: 8, harvestLevel: 3, durability: 1025, prefix: 'Diamond' },
+};
+
+const TIER_DAMAGE: Record<ToolTier, number> = { wood: 1, stone: 2, iron: 3, gold: 1, diamond: 4 };
+
+for (let c = 0; c < TOOL_CLASS_LIST.length; c++) {
+  for (let t = 0; t < TOOL_TIER_LIST.length; t++) {
+    const cls = TOOL_CLASS_LIST[c];
+    const tier = TOOL_TIER_LIST[t];
+    const stats = TIER_STATS[tier];
+    const baseDamage = cls === 'sword' ? 3 : cls === 'axe' ? 2 : 1;
+    register({
+      id: `${tier === 'wood' ? 'wooden' : tier === 'gold' ? 'golden' : tier}_${cls}`,
+      name: `${stats.prefix} ${cls[0].toUpperCase()}${cls.slice(1)}`,
+      type: 'tool',
+      maxStack: 1,
+      icon: Tile.ToolBase + c * 5 + t,
+      tool: {
+        class: cls,
+        tier,
+        speed: stats.speed,
+        harvestLevel: stats.harvestLevel,
+        maxDurability: stats.durability,
+        damage: baseDamage + TIER_DAMAGE[tier],
+      },
+    });
+  }
+}
+
 export function itemDef(id: string): ItemDef | undefined {
   return REGISTRY.get(id);
 }

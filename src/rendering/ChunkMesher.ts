@@ -87,6 +87,31 @@ function toGeometry(b: GeoBuffers): THREE.BufferGeometry | null {
   return g;
 }
 
+/** Emit a free-standing box (used by the torch model): all 6 faces, one tile. */
+function emitBox(
+  buf: GeoBuffers,
+  bx: number, by: number, bz: number,
+  width: number, height: number,
+  tile: number, tileW: number, tileH: number,
+): void {
+  const tu = (tile % ATLAS_COLS) * tileW;
+  const tv = 1 - tileH - Math.floor(tile / ATLAS_COLS) * tileH;
+  for (const face of FACES) {
+    const vertBase = buf.positions.length / 3;
+    for (const c of face.corners) {
+      buf.positions.push(
+        bx + c.pos[0] * width,
+        by + c.pos[1] * height,
+        bz + c.pos[2] * width,
+      );
+      buf.normals.push(face.dir[0], face.dir[1], face.dir[2]);
+      buf.uvs.push(tu + c.uv[0] * tileW, tv + c.uv[1] * tileH);
+      buf.colors.push(face.shade, face.shade, face.shade);
+    }
+    buf.indices.push(vertBase, vertBase + 1, vertBase + 2, vertBase + 2, vertBase + 1, vertBase + 3);
+  }
+}
+
 /** Should `block`'s face touching `neighbor` be drawn? */
 function faceVisible(block: number, neighbor: number): boolean {
   if (isOpaque(neighbor)) return false;
@@ -118,6 +143,13 @@ export function meshChunk(chunk: Chunk, world: ChunkManager): ChunkMeshData {
         const id = chunk.get(x, y, z);
         if (id === Block.Air) continue;
         const def = blockDef(id);
+
+        // Non-cube models: torches render as a mini box, never culled.
+        if (def.model === 'torch') {
+          emitBox(transparent, x + 0.4375, y, z + 0.4375, 0.125, 0.625, def.tiles[0], tileW, tileH);
+          continue;
+        }
+
         const buf = def.transparent ? transparent : opaque;
 
         for (let f = 0; f < 6; f++) {

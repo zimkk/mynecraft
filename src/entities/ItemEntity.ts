@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ItemStack, itemDef } from '../items/ItemRegistry';
 import { ChunkManager } from '../world/ChunkManager';
-import { isSolid, Block } from '../world/BlockRegistry';
+import { isCollidable } from '../world/BlockRegistry';
 import { ATLAS_COLS, ATLAS_ROWS } from '../rendering/TextureAtlas';
 
 const SIZE = 0.28;
@@ -73,7 +73,7 @@ export class ItemEntity {
     const half = SIZE / 2;
     const blockAt = (y: number) => world.getBlock(Math.floor(p.x), Math.floor(y), Math.floor(p.z));
     const below = blockAt(p.y - half);
-    if (isSolid(below) && below !== Block.Water) {
+    if (isCollidable(below)) {
       const top = Math.floor(p.y - half) + 1;
       if (p.y - half < top) {
         p.y = top + half;

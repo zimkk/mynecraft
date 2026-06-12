@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ChunkManager } from '../world/ChunkManager';
-import { isSolid, Block } from '../world/BlockRegistry';
+import { isCollidable } from '../world/BlockRegistry';
 import { Input } from '../core/Input';
 
 const WIDTH = 0.6;       // AABB footprint (x/z)
@@ -151,7 +151,7 @@ export class Player {
       for (let bz = minZ; bz <= maxZ; bz++) {
         for (let bx = minX; bx <= maxX; bx++) {
           const id = this.world.getBlock(bx, by, bz);
-          if (!isSolid(id) || id === Block.Water) continue;
+          if (!isCollidable(id)) continue;
           hit = true;
 
           let candidate: number;

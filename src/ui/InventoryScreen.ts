@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Inventory, HOTBAR_SIZE, INVENTORY_SIZE } from '../items/Inventory';
 import { ItemStack, allItems, itemDef, makeStack, maxStackOf, stacksMatch } from '../items/ItemRegistry';
+import { matchRecipe } from '../crafting/Recipes';
 import { renderSlotContents, iconURL } from './Hotbar';
 
 export interface InventoryScreenCallbacks {
@@ -12,20 +13,26 @@ export interface InventoryScreenCallbacks {
   requestClose: () => void;
 }
 
+// Virtual slot indices: 0..35 inventory, 100..108 craft grid, 200 result.
+const CRAFT_BASE = 100;
+const RESULT_SLOT = 200;
+
 /**
- * Inventory screen (toggle E): 27 main slots + hotbar row, Minecraft-style
- * cursor-stack interaction — click to pick up / place / swap, right-click to
- * split or place one, shift-click to quick-move between sections — plus a
- * creative palette tab with infinite items.
+ * Inventory screen (toggle E): crafting grid (2×2 standalone, 3×3 at a
+ * crafting table) + 27 main slots + hotbar row. Minecraft-style cursor-stack
+ * interaction; creative palette tab with infinite items.
  */
 export class InventoryScreen {
   open = false;
   private cursorStack: ItemStack | null = null;
+  /** Always 3×3 storage; in 2×2 mode the outer cells are hidden (and empty). */
+  private readonly craftSlots: Array<ItemStack | null> = new Array(9).fill(null);
   private readonly root: HTMLElement;
   private readonly cursorEl: HTMLElement;
-  private readonly slotEls: HTMLElement[] = [];
+  private readonly slotEls = new Map<number, HTMLElement>();
   private readonly paletteEl: HTMLElement;
   private readonly paletteTabEl: HTMLElement;
+  private readonly titleEl: HTMLElement;
   private readonly inventory: Inventory;
   private readonly atlas: THREE.CanvasTexture;
   private readonly callbacks: InventoryScreenCallbacks;
@@ -43,10 +50,26 @@ export class InventoryScreen {
     const panel = document.createElement('div');
     panel.className = 'inv-panel';
 
-    const title = document.createElement('div');
-    title.className = 'inv-title';
-    title.textContent = 'Inventory';
-    panel.appendChild(title);
+    this.titleEl = document.createElement('div');
+    this.titleEl.className = 'inv-title';
+    this.titleEl.textContent = 'Inventory';
+    panel.appendChild(this.titleEl);
+
+    // Crafting area: 3×3 grid + arrow + result.
+    const craftRow = document.createElement('div');
+    craftRow.className = 'craft-row';
+    const craftGrid = document.createElement('div');
+    craftGrid.className = 'craft-grid';
+    for (let i = 0; i < 9; i++) {
+      craftGrid.appendChild(this.makeSlot(CRAFT_BASE + i));
+    }
+    craftRow.appendChild(craftGrid);
+    const arrow = document.createElement('div');
+    arrow.className = 'craft-arrow';
+    arrow.textContent = '→';
+    craftRow.appendChild(arrow);
+    craftRow.appendChild(this.makeSlot(RESULT_SLOT));
+    panel.appendChild(craftRow);
 
     // Main 3×9 grid: inventory indices 9..35.
     const mainGrid = document.createElement('div');
@@ -114,39 +137,97 @@ export class InventoryScreen {
 
   private makeSlot(index: number): HTMLElement {
     const el = document.createElement('div');
-    el.className = 'slot';
+    el.className = index === RESULT_SLOT ? 'slot result-slot' : 'slot';
     el.addEventListener('mousedown', (e) => {
       e.preventDefault();
       this.onSlotClick(index, e.button, e.shiftKey);
     });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
-    this.slotEls[index] = el;
+    this.slotEls.set(index, el);
     return el;
+  }
+
+  // ---- Virtual slot access (inventory / craft grid / result) ----
+
+  private getSlot(index: number): ItemStack | null {
+    if (index === RESULT_SLOT) {
+      const r = matchRecipe(this.craftSlots, 3);
+      return r ? makeStack(r.id, r.count) : null;
+    }
+    if (index >= CRAFT_BASE) return this.craftSlots[index - CRAFT_BASE];
+    return this.inventory.get(index);
+  }
+
+  private setSlot(index: number, stack: ItemStack | null): void {
+    if (index === RESULT_SLOT) return;
+    if (index >= CRAFT_BASE) this.craftSlots[index - CRAFT_BASE] = stack;
+    else this.inventory.set(index, stack);
+  }
+
+  /** Take one crafting result: consume one item from each occupied grid cell. */
+  private consumeCraftIngredients(): void {
+    for (let i = 0; i < 9; i++) {
+      const s = this.craftSlots[i];
+      if (s) {
+        s.count--;
+        if (s.count <= 0) this.craftSlots[i] = null;
+      }
+    }
   }
 
   /** Minecraft-style slot interaction state machine. */
   private onSlotClick(index: number, button: number, shift: boolean): void {
-    const inv = this.inventory;
-    const slot = inv.get(index);
+    // Result slot: take crafted output.
+    if (index === RESULT_SLOT) {
+      const result = this.getSlot(RESULT_SLOT);
+      if (!result) return;
+      if (shift) {
+        // Craft repeatedly into the inventory until ingredients run out.
+        let guard = 64;
+        while (guard-- > 0) {
+          const r = this.getSlot(RESULT_SLOT);
+          if (!r || !this.inventory.canFit(r)) break;
+          this.inventory.add(r);
+          this.consumeCraftIngredients();
+        }
+      } else if (!this.cursorStack) {
+        this.cursorStack = result;
+        this.consumeCraftIngredients();
+      } else if (stacksMatch(this.cursorStack, result) &&
+                 this.cursorStack.count + result.count <= maxStackOf(result.id)) {
+        this.cursorStack.count += result.count;
+        this.consumeCraftIngredients();
+      }
+      this.refresh();
+      return;
+    }
+
+    const slot = this.getSlot(index);
 
     if (shift && button === 0) {
-      // Quick-move between hotbar and main section.
       if (!slot) return;
-      const targetStart = index < HOTBAR_SIZE ? HOTBAR_SIZE : 0;
-      const targetEnd = index < HOTBAR_SIZE ? INVENTORY_SIZE : HOTBAR_SIZE;
-      this.quickMove(index, targetStart, targetEnd);
+      if (index >= CRAFT_BASE) {
+        // Craft grid → inventory.
+        const leftover = this.inventory.add(slot);
+        this.setSlot(index, leftover > 0 ? { ...slot, count: leftover } : null);
+      } else {
+        // Quick-move between hotbar and main section.
+        const targetStart = index < HOTBAR_SIZE ? HOTBAR_SIZE : 0;
+        const targetEnd = index < HOTBAR_SIZE ? INVENTORY_SIZE : HOTBAR_SIZE;
+        this.quickMove(index, targetStart, targetEnd);
+      }
+      this.refresh();
       return;
     }
 
     if (button === 0) {
-      // Left: pick up / place all / swap / merge.
       if (!this.cursorStack) {
         if (slot) {
           this.cursorStack = slot;
-          inv.set(index, null);
+          this.setSlot(index, null);
         }
       } else if (!slot) {
-        inv.set(index, this.cursorStack);
+        this.setSlot(index, this.cursorStack);
         this.cursorStack = null;
       } else if (stacksMatch(slot, this.cursorStack)) {
         const max = maxStackOf(slot.id);
@@ -154,33 +235,30 @@ export class InventoryScreen {
         slot.count += take;
         this.cursorStack.count -= take;
         if (this.cursorStack.count <= 0) this.cursorStack = null;
-        inv.notify();
       } else {
         const tmp = this.cursorStack;
         this.cursorStack = slot;
-        inv.set(index, tmp);
+        this.setSlot(index, tmp);
       }
     } else if (button === 2) {
-      // Right: split half (empty cursor) or place one (holding).
       if (!this.cursorStack) {
         if (slot) {
           const half = Math.ceil(slot.count / 2);
           this.cursorStack = { ...slot, count: half };
           slot.count -= half;
-          if (slot.count <= 0) inv.set(index, null);
-          else inv.notify();
+          if (slot.count <= 0) this.setSlot(index, null);
         }
       } else if (!slot) {
-        inv.set(index, { ...this.cursorStack, count: 1 });
+        this.setSlot(index, { ...this.cursorStack, count: 1 });
         this.cursorStack.count--;
         if (this.cursorStack.count <= 0) this.cursorStack = null;
       } else if (stacksMatch(slot, this.cursorStack) && slot.count < maxStackOf(slot.id)) {
         slot.count++;
         this.cursorStack.count--;
         if (this.cursorStack.count <= 0) this.cursorStack = null;
-        inv.notify();
       }
     }
+    this.inventory.notify();
     this.refresh();
   }
 
@@ -207,8 +285,17 @@ export class InventoryScreen {
     inv.set(from, stack.count > 0 ? stack : null);
   }
 
-  openScreen(): void {
+  /** mode 2 = personal 2×2 grid; mode 3 = crafting table 3×3. */
+  openScreen(mode: 2 | 3 = 2): void {
     this.open = true;
+    this.titleEl.textContent = mode === 3 ? 'Crafting Table' : 'Inventory';
+    // Hide the outer craft cells in 2×2 mode (they are empty by invariant).
+    for (let i = 0; i < 9; i++) {
+      const x = i % 3;
+      const y = Math.floor(i / 3);
+      const visible = mode === 3 || (x < 2 && y < 2);
+      this.slotEls.get(CRAFT_BASE + i)!.style.display = visible ? 'flex' : 'none';
+    }
     this.root.style.display = 'flex';
     this.refresh();
   }
@@ -216,20 +303,27 @@ export class InventoryScreen {
   closeScreen(): void {
     this.open = false;
     this.root.style.display = 'none';
-    // Whatever is on the cursor goes back to the inventory (overflow tossed).
+    // Cursor stack and craft grid contents go back to the inventory.
     if (this.cursorStack) {
       const leftover = this.inventory.add(this.cursorStack);
       if (leftover > 0) this.callbacks.tossItem({ ...this.cursorStack, count: leftover });
       this.cursorStack = null;
     }
+    for (let i = 0; i < 9; i++) {
+      const s = this.craftSlots[i];
+      if (s) {
+        const leftover = this.inventory.add(s);
+        if (leftover > 0) this.callbacks.tossItem({ ...s, count: leftover });
+        this.craftSlots[i] = null;
+      }
+    }
     this.cursorEl.innerHTML = '';
   }
 
   refresh(): void {
-    for (let i = 0; i < INVENTORY_SIZE; i++) {
-      renderSlotContents(this.slotEls[i], this.inventory.get(i), this.atlas);
+    for (const [index, el] of this.slotEls) {
+      renderSlotContents(el, this.getSlot(index), this.atlas);
     }
-    // Cursor stack rendering.
     this.cursorEl.innerHTML = '';
     if (this.cursorStack) {
       const def = itemDef(this.cursorStack.id);

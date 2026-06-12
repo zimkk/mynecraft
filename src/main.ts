@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Game } from './core/Game';
 import { Input } from './core/Input';
 import { ChunkManager } from './world/ChunkManager';
+import { Block } from './world/BlockRegistry';
 import { ChunkStreamer } from './world/ChunkStreamer';
 import { TerrainGenerator, WATER_LEVEL } from './terrain/TerrainGenerator';
 import { buildAtlasTexture } from './rendering/TextureAtlas';
@@ -127,6 +128,16 @@ const invScreen = new InventoryScreen(document.body, atlas, inventory, {
     game.renderer.domElement.requestPointerLock();
   },
 });
+
+// Right-clicking interactive blocks opens their UI instead of placing.
+interaction.onUseBlock = (id) => {
+  if (id === Block.CraftingTable) {
+    invScreen.openScreen(3);
+    input.unlock();
+    return true;
+  }
+  return false;
+};
 
 // Pause menu: shown whenever the pointer is unlocked (Esc opens it).
 const menu = new Menu(

@@ -15,6 +15,9 @@ export enum Block {
   IronOre = 12,
   GoldOre = 13,
   DiamondOre = 14,
+  CraftingTable = 15,
+  Furnace = 16,
+  Torch = 17,
 }
 
 /** Atlas tile slots (filled by the runtime-generated texture atlas in /rendering). */
@@ -40,6 +43,13 @@ export const Tile = {
   Stick: 18,
   IronIngot: 19,
   GoldIngot: 20,
+  CraftingTableTop: 21,
+  CraftingTableSide: 22,
+  FurnaceFront: 23,
+  FurnaceSide: 24,
+  Torch: 25,
+  /** Tool icons occupy tiles 26..55: 26 + classIndex*5 + tierIndex. */
+  ToolBase: 26,
 } as const;
 
 export interface BlockDef {
@@ -53,6 +63,10 @@ export interface BlockDef {
   tiles: [number, number, number, number, number, number];
   /** Item id dropped when broken; null = nothing. Defaults to the block's own item. */
   drops: string | null;
+  /** Player/entity physics collide with it. Defaults to `solid` (torches: false). */
+  collidable: boolean;
+  /** Non-cube render model. */
+  model?: 'torch';
 }
 
 function def(
@@ -70,6 +84,7 @@ function def(
     id, name, solid, transparent,
     tiles: [side, side, bottom, top, side, side],
     drops: drops === undefined ? name.toLowerCase().replace(/ /g, '_') : drops,
+    collidable: solid,
   };
 }
 
@@ -91,6 +106,14 @@ export const BLOCKS: readonly BlockDef[] = [
   def(Block.IronOre, 'Iron Ore', true, false, { all: Tile.IronOre }, 'iron_ore'),
   def(Block.GoldOre, 'Gold Ore', true, false, { all: Tile.GoldOre }, 'gold_ore'),
   def(Block.DiamondOre, 'Diamond Ore', true, false, { all: Tile.DiamondOre }, 'diamond'),
+  def(Block.CraftingTable, 'Crafting Table', true, false, { top: Tile.CraftingTableTop, bottom: Tile.Plank, side: Tile.CraftingTableSide }),
+  def(Block.Furnace, 'Furnace', true, false, { all: Tile.FurnaceSide }),
+  {
+    // Torch: targetable (solid for raycast) but walk-through, custom mini model.
+    ...def(Block.Torch, 'Torch', true, true, { all: Tile.Torch }),
+    collidable: false,
+    model: 'torch',
+  },
 ];
 
 export function blockDef(id: number): BlockDef {
@@ -105,4 +128,9 @@ export function isOpaque(id: number): boolean {
 
 export function isSolid(id: number): boolean {
   return blockDef(id).solid;
+}
+
+/** Physics collision (torches are solid-for-targeting but walk-through). */
+export function isCollidable(id: number): boolean {
+  return blockDef(id).collidable;
 }

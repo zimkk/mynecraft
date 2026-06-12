@@ -79,6 +79,15 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - **Verify:** forests visible with whole trees across chunk borders; sampled 40k underground cells: coal 163 / iron 158 / gold 90 / diamond 42, ~4% cave air. Leaves drop nothing; logs drop logs.
 - Deferred: leaf decay (optional per spec).
 
+## Phase 14 — Crafting System ✅
+- Recipe registry: shaped (bounding-box-trimmed pattern match, works at any offset in the grid) + shapeless (multiset match). Output preview in the result slot; taking it consumes one of each occupied cell; shift-click crafts repeatedly.
+- 2×2 grid in the inventory screen; crafting table block (right-click) opens the same screen in 3×3 mode. Grid contents return to the inventory on close.
+- Recipes: log→4 planks, planks→sticks, crafting table, furnace (8 cobble), torches (coal+stick), and all 5 tool classes × 5 tiers (wood/stone/iron/gold/diamond).
+- New blocks: crafting table, furnace (UI in Phase 16), torch with a custom mini-box model — targetable but walk-through via the new `collidable` flag (physics now uses `isCollidable`).
+- 25 procedural tool icons (class shapes × tier colors) in the atlas; tool items registered with tier stats (speed/harvest level/durability/damage) for Phase 15.
+- **Verify (scripted):** log→planks→sticks→wooden pickaxe all match; offset 2×2 in 3×3 works; invalid pattern → no output; crafting consumed exactly one log. Torch/table/furnace render in-world.
+- Deferred: chest (needs a container framework; can ride along with a later phase).
+
 ## Decisions & known issues
 - Phases were verified in-browser (screenshots + scripted checks via the `window.vox` dev hook).
 - Water is rendered as a transparent pass without surface animation; swimming physics not implemented (water is non-solid — you sink/walk through it).

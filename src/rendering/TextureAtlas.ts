@@ -95,7 +95,98 @@ const PAINTERS: Record<number, TilePainter> = {
   },
   [Tile.IronIngot]: ingot(225, 220, 215),
   [Tile.GoldIngot]: ingot(250, 215, 70),
+  [Tile.CraftingTableTop]: (x, y, rng) => {
+    // Plank base with a dark work-grid border.
+    const border = x <= 1 || y <= 1 || x >= 14 || y >= 14;
+    const cross = x === 7 || x === 8 || y === 7 || y === 8;
+    const n = (rng() - 0.5) * 14;
+    if (border || cross) return [96 + n, 72 + n, 44 + n, 255];
+    return [168 + n, 133 + n, 81 + n, 255];
+  },
+  [Tile.CraftingTableSide]: (x, y, rng) => {
+    // Planks with tool silhouettes hinted as dark patches.
+    const patch = (x >= 3 && x <= 6 && y >= 3 && y <= 7) || (x >= 9 && x <= 12 && y >= 4 && y <= 8);
+    const n = (rng() - 0.5) * 14;
+    const d = patch ? -55 : 0;
+    return [168 + n + d, 133 + n + d, 81 + n + d, 255];
+  },
+  [Tile.FurnaceFront]: (x, y, rng) => {
+    // Stone body with a dark mouth opening at the bottom center.
+    const mouth = x >= 4 && x <= 11 && y >= 8 && y <= 13;
+    const n = (rng() - 0.5) * 20;
+    if (mouth) return [30 + n * 0.4, 26 + n * 0.4, 24 + n * 0.4, 255];
+    const base = x % 5 === 0 || y % 5 === 0 ? 95 : 125;
+    return [base + n, base + n, base + n, 255];
+  },
+  [Tile.FurnaceSide]: (x, y, rng) => {
+    const n = (rng() - 0.5) * 20;
+    const base = x % 5 === 0 || y % 5 === 0 ? 95 : 125;
+    return [base + n, base + n, base + n, 255];
+  },
+  [Tile.Torch]: (x, y) => {
+    // Vertical stick with a glowing head (used by the mini torch model).
+    const onStick = x >= 7 && x <= 8;
+    if (!onStick) return [0, 0, 0, 0];
+    if (y <= 2) return [255, 235, 120, 255]; // flame
+    if (y <= 4) return [220, 140, 50, 255]; // ember
+    return [137, 103, 57, 255]; // handle
+  },
 };
+
+// ---- Tool icons: tiles ToolBase + classIndex*5 + tierIndex ----
+
+export const TOOL_CLASSES = ['pickaxe', 'axe', 'shovel', 'sword', 'hoe'] as const;
+export const TOOL_TIERS = ['wood', 'stone', 'iron', 'gold', 'diamond'] as const;
+
+const TIER_COLORS: Record<string, [number, number, number]> = {
+  wood: [160, 125, 75],
+  stone: [135, 135, 135],
+  iron: [225, 220, 215],
+  gold: [250, 215, 70],
+  diamond: [95, 225, 220],
+};
+
+const HANDLE: [number, number, number] = [120, 88, 46];
+
+/** Which part of a tool (if any) covers pixel (x,y): handle along the anti-diagonal, head near the top-right. */
+function toolPart(cls: string, x: number, y: number): 'head' | 'handle' | null {
+  const onDiag = Math.abs(x + y - 15) <= 1;
+  switch (cls) {
+    case 'pickaxe':
+      if (y >= 1 && y <= 2 && x >= 2 && x <= 13) return 'head';
+      if ((x <= 3 || x >= 12) && y >= 3 && y <= 5 && (x <= 3 ? x + 1 >= y - 2 : true)) return 'head';
+      return onDiag && y >= 4 && y <= 13 ? 'handle' : null;
+    case 'axe':
+      if (x >= 8 && x <= 13 && y >= 0 && y <= 5 && !(x <= 9 && y >= 4)) return 'head';
+      return onDiag && y >= 4 && y <= 13 ? 'handle' : null;
+    case 'shovel':
+      if (x >= 10 && x <= 14 && y >= 0 && y <= 4 && x + y >= 11 && x + y <= 17) return 'head';
+      return onDiag && y >= 5 && y <= 13 ? 'handle' : null;
+    case 'sword':
+      if (onDiag && y >= 1 && y <= 10) return 'head'; // blade
+      if ((x === 4 && y === 10) || (x === 6 && y === 12) || (x === 5 && y === 11 - 1)) return 'head'; // guard
+      return onDiag && y >= 11 && y <= 14 ? 'handle' : null;
+    case 'hoe':
+      if (y >= 1 && y <= 2 && x >= 7 && x <= 13) return 'head';
+      if (x >= 12 && x <= 13 && y >= 3 && y <= 4) return 'head';
+      return onDiag && y >= 3 && y <= 13 ? 'handle' : null;
+  }
+  return null;
+}
+
+for (let c = 0; c < TOOL_CLASSES.length; c++) {
+  for (let t = 0; t < TOOL_TIERS.length; t++) {
+    const cls = TOOL_CLASSES[c];
+    const color = TIER_COLORS[TOOL_TIERS[t]];
+    PAINTERS[Tile.ToolBase + c * 5 + t] = (x, y, rng) => {
+      const part = toolPart(cls, x, y);
+      if (!part) return [0, 0, 0, 0];
+      const [r, g, b] = part === 'head' ? color : HANDLE;
+      const n = (rng() - 0.5) * 16;
+      return [r + n, g + n, b + n, 255];
+    };
+  }
+}
 
 /** Stone base with embedded ore specks at fixed 2×2 spots. */
 function ore(r: number, g: number, b: number): TilePainter {

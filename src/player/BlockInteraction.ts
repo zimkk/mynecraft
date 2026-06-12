@@ -29,6 +29,8 @@ export class BlockInteraction {
   private readonly hotbar: Hotbar;
   private breakCooldown = 0;
   private placeCooldown = 0;
+  /** Right-clicking an interactive block (crafting table, furnace) — return true if handled. */
+  onUseBlock?: (id: Block, x: number, y: number, z: number) => boolean;
 
   constructor(
     scene: THREE.Scene,
@@ -76,9 +78,12 @@ export class BlockInteraction {
       this.breakCooldown = PLACE_REPEAT_DELAY;
     }
 
-    // Place into the cell adjacent to the hit face, consuming from the hotbar.
+    // Right click: use interactive blocks first; otherwise place.
     if (this.target && input.buttonDown(2) && (input.buttonJustPressed(2) || this.placeCooldown <= 0)) {
-      this.placeBlock(this.target);
+      const used =
+        input.buttonJustPressed(2) &&
+        this.onUseBlock?.(this.target.id, this.target.x, this.target.y, this.target.z);
+      if (!used) this.placeBlock(this.target);
       this.placeCooldown = PLACE_REPEAT_DELAY;
     }
   }
