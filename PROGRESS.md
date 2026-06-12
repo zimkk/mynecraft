@@ -122,6 +122,13 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - **Verify (scripted):** zombie chased and damaged the player (killed the half-health QA player — death flow fired correctly); zombie burned to death in daylight; dead pig dropped loot; melee ray hit a pig for 4 (10→6), triggering flee + knockback −7 z; level ray correctly passes OVER a 0.9-block pig.
 - Note: an apparent FPS drop during QA was confirmed to be browser rAF-throttling of the occluded preview window (120 mob updates = 0.3 ms CPU; 65 draw calls).
 
+## Phase 19 — Lighting, Particles & Sound ✅
+- **Light engine:** per-chunk skylight (poured down columns, −2 through water) + torch light (level 14), both BFS flood-filled through non-opaque cells with −1 attenuation. Faces are lit by the cell they face into. Recomputation is per-chunk and lazy (computed on demand when meshing), so edits stay O(one chunk) — light deliberately does not cross chunk borders (rarely visible; documented trade-off).
+- **Chunk shader:** replaced Lambert with a custom ShaderMaterial — per-vertex (sky, torch) light attributes pre-multiplied by face shade; fragment combines `max(torch, sky × dayFactor)` with a 0.035 floor + linear fog. Night dims the world live via the uniform with zero re-meshing; torch-lit areas stay bright at night. Mobs/item drops keep Lambert + scene fog.
+- **Particles:** 400-slot pooled THREE.Points; block-break bursts tinted by the block's average tile color; eating crumbs.
+- **Sound:** procedural WebAudio (no assets) — filtered-noise thuds for break/place (pitch by material: stone/wood/dirt), oscillator blips for pickup/hurt/mob-hit, tool-break crack, eat crunch; world sounds attenuate with distance.
+- **Verify (scripted + visual):** cave at y16 renders near-black; placing a torch lit it instantly (mesh update < 1 frame, edit cost 0.2 ms); probed light values: torch cell 14, adjacent air 13, two away 12, opaque cells 0; surface skylight 15; dusk surface render dims correctly with fog.
+
 ## Decisions & known issues
 - Phases were verified in-browser (screenshots + scripted checks via the `window.vox` dev hook).
 - Water is rendered as a transparent pass without surface animation; swimming physics not implemented (water is non-solid — you sink/walk through it).

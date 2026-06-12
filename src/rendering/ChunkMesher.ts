@@ -3,6 +3,7 @@ import { Chunk, CHUNK_SIZE, CHUNK_HEIGHT } from '../world/Chunk';
 import { ChunkManager } from '../world/ChunkManager';
 import { blockDef, isOpaque, Block } from '../world/BlockRegistry';
 import { ATLAS_COLS, ATLAS_ROWS } from './TextureAtlas';
+import { lightAt } from './Lighting';
 
 /**
  * Cube face table. For each direction: the outward normal, the four corner
@@ -68,12 +69,13 @@ interface GeoBuffers {
   positions: number[];
   normals: number[];
   uvs: number[];
-  colors: number[];
+  /** Per-vertex (skyLight, blockLight), each pre-multiplied by face shade, 0..1. */
+  lights: number[];
   indices: number[];
 }
 
 function newBuffers(): GeoBuffers {
-  return { positions: [], normals: [], uvs: [], colors: [], indices: [] };
+  return { positions: [], normals: [], uvs: [], lights: [], indices: [] };
 }
 
 function toGeometry(b: GeoBuffers): THREE.BufferGeometry | null {
@@ -82,7 +84,7 @@ function toGeometry(b: GeoBuffers): THREE.BufferGeometry | null {
   g.setAttribute('position', new THREE.Float32BufferAttribute(b.positions, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(b.normals, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(b.uvs, 2));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(b.colors, 3));
+  g.setAttribute('light', new THREE.Float32BufferAttribute(b.lights, 2));
   g.setIndex(b.indices);
   return g;
 }
@@ -93,6 +95,7 @@ function emitBox(
   bx: number, by: number, bz: number,
   width: number, height: number,
   tile: number, tileW: number, tileH: number,
+  skyLight: number, blockLight: number,
 ): void {
   const tu = (tile % ATLAS_COLS) * tileW;
   const tv = 1 - tileH - Math.floor(tile / ATLAS_COLS) * tileH;
@@ -106,7 +109,7 @@ function emitBox(
       );
       buf.normals.push(face.dir[0], face.dir[1], face.dir[2]);
       buf.uvs.push(tu + c.uv[0] * tileW, tv + c.uv[1] * tileH);
-      buf.colors.push(face.shade, face.shade, face.shade);
+      buf.lights.push(skyLight, blockLight);
     }
     buf.indices.push(vertBase, vertBase + 1, vertBase + 2, vertBase + 2, vertBase + 1, vertBase + 3);
   }
@@ -146,7 +149,9 @@ export function meshChunk(chunk: Chunk, world: ChunkManager): ChunkMeshData {
 
         // Non-cube models: torches render as a mini box, never culled.
         if (def.model === 'torch') {
-          emitBox(transparent, x + 0.4375, y, z + 0.4375, 0.125, 0.625, def.tiles[0], tileW, tileH);
+          const [sky] = lightAt(world, baseX + x, y, baseZ + z);
+          // Torch sells its own glow: full block light on the model.
+          emitBox(transparent, x + 0.4375, y, z + 0.4375, 0.125, 0.625, def.tiles[0], tileW, tileH, sky / 15, 1);
           continue;
         }
 
@@ -170,11 +175,16 @@ export function meshChunk(chunk: Chunk, world: ChunkManager): ChunkMeshData {
           const tv = 1 - tileH - Math.floor(tile / ATLAS_COLS) * tileH;
           const vertBase = buf.positions.length / 3;
 
+          // Face is lit by the cell it faces into.
+          const [skyL, blkL] = lightAt(world, baseX + nx, ny, baseZ + nz);
+          const sky = (skyL / 15) * face.shade;
+          const blk = (blkL / 15) * face.shade;
+
           for (const c of face.corners) {
             buf.positions.push(x + c.pos[0], y + c.pos[1], z + c.pos[2]);
             buf.normals.push(face.dir[0], face.dir[1], face.dir[2]);
             buf.uvs.push(tu + c.uv[0] * tileW, tv + c.uv[1] * tileH);
-            buf.colors.push(face.shade, face.shade, face.shade);
+            buf.lights.push(sky, blk);
           }
           buf.indices.push(vertBase, vertBase + 1, vertBase + 2, vertBase + 2, vertBase + 1, vertBase + 3);
         }

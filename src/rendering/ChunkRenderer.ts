@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Chunk, CHUNK_SIZE } from '../world/Chunk';
 import { ChunkManager, chunkKey } from '../world/ChunkManager';
 import { meshChunk } from './ChunkMesher';
+import { makeChunkMaterials, ChunkUniforms } from './ChunkMaterial';
 
 interface ChunkMeshes {
   opaque: THREE.Mesh | null;
@@ -16,23 +17,18 @@ export class ChunkRenderer {
   private readonly scene: THREE.Scene;
   private readonly world: ChunkManager;
   private readonly meshes = new Map<string, ChunkMeshes>();
-  readonly opaqueMaterial: THREE.MeshLambertMaterial;
-  readonly transparentMaterial: THREE.MeshLambertMaterial;
+  readonly opaqueMaterial: THREE.ShaderMaterial;
+  readonly transparentMaterial: THREE.ShaderMaterial;
+  /** Shared uniforms (dayFactor, fog) driven by the day/night cycle. */
+  readonly uniforms: ChunkUniforms;
 
   constructor(scene: THREE.Scene, world: ChunkManager, atlas: THREE.Texture) {
     this.scene = scene;
     this.world = world;
-    this.opaqueMaterial = new THREE.MeshLambertMaterial({
-      map: atlas,
-      vertexColors: true,
-    });
-    this.transparentMaterial = new THREE.MeshLambertMaterial({
-      map: atlas,
-      vertexColors: true,
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
+    const mats = makeChunkMaterials(atlas);
+    this.opaqueMaterial = mats.opaque;
+    this.transparentMaterial = mats.transparent;
+    this.uniforms = mats.uniforms;
   }
 
   /** Re-mesh dirty chunks. Budgeted so a burst of edits can't hitch a frame badly. */

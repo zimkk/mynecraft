@@ -19,6 +19,11 @@ import { InventoryScreen } from './ui/InventoryScreen';
 import { FurnaceManager } from './world/Furnace';
 import { StatsHud } from './ui/StatsHud';
 import { MobManager } from './entities/MobManager';
+import { Particles } from './rendering/Particles';
+import { Sound } from './core/Sound';
+import { blockDef } from './world/BlockRegistry';
+import { tileAverageColor } from './rendering/TextureAtlas';
+import { lightAt } from './rendering/Lighting';
 import { itemDef } from './items/ItemRegistry';
 import { Menu, loadRenderDistance } from './ui/Menu';
 
@@ -33,6 +38,7 @@ game.scene.add(sun.target);
 const ambient = new THREE.AmbientLight(0xffffff, 0.6);
 game.scene.add(ambient);
 const dayNight = new DayNightCycle(game.scene, sun, ambient);
+// (chunk shader uniforms attached after the renderer is created below)
 
 // World: resume the saved world, start a staged new one, or roll a random seed.
 const newSeed = SaveManager.consumeNewSeed();
@@ -43,6 +49,7 @@ const world = new ChunkManager();
 const generator = new TerrainGenerator(SEED);
 const atlas = buildAtlasTexture();
 const chunkRenderer = new ChunkRenderer(game.scene, world, atlas);
+dayNight.chunkUniforms = chunkRenderer.uniforms;
 const streamer = new ChunkStreamer(world, generator, chunkRenderer, loadRenderDistance());
 if (save) {
   for (const [key, id] of save.edits) streamer.edits.set(key, id);
@@ -202,13 +209,34 @@ interaction.onUseBlock = (id, x, y, z) => {
   return false;
 };
 
-// Breaking a furnace spills its contents.
+// Particles + procedural sound feedback.
+const particles = new Particles(game.scene);
+const sound = new Sound();
+
+function breakSoundFor(id: Block): 'break_stone' | 'break_wood' | 'break_dirt' {
+  const def = blockDef(id);
+  if (def.toolClass === 'pickaxe') return 'break_stone';
+  if (def.toolClass === 'axe') return 'break_wood';
+  return 'break_dirt';
+}
+
 interaction.onBlockBroken = (id, x, y, z) => {
+  // Furnaces spill their contents.
   if (id === Block.Furnace) {
     for (const stack of furnaces.remove(x, y, z)) {
       entities.dropItem(stack, new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5));
     }
   }
+  const [r, g, b] = tileAverageColor(atlas, blockDef(id).tiles[0]);
+  particles.burst(x + 0.5, y + 0.5, z + 0.5, r, g, b);
+  sound.play(breakSoundFor(id), player.position.distanceTo(new THREE.Vector3(x, y, z)));
+};
+interaction.onBlockPlaced = () => sound.play('place');
+interaction.onToolBroke = () => sound.play('tool_break');
+entities.onPickup = () => sound.play('pickup');
+player.onDamage = () => {
+  statsHud.flash();
+  sound.play('hurt');
 };
 
 // Pause menu: shown whenever the pointer is unlocked (Esc opens it).
@@ -276,6 +304,7 @@ game.onUpdate((dt) => {
       const held = hotbar.selectedStack;
       const tool = held ? itemDef(held.id)?.tool : undefined;
       mob.hurt(tool?.damage ?? 1, player.position);
+      sound.play('mob_hurt', mob.position.distanceTo(player.position));
       if (tool && held?.durability !== undefined && !player.creative) {
         held.durability--;
         if (held.durability <= 0) inventory.set(hotbar.selected, null);
@@ -293,6 +322,10 @@ game.onUpdate((dt) => {
       eatTimer = 0;
       player.eat(food.hunger, food.saturation);
       inventory.consumeOne(hotbar.selected);
+      sound.play('eat');
+      const eye = player.eyePosition;
+      const dir = player.lookDirection;
+      particles.burst(eye.x + dir.x, eye.y + dir.y - 0.3, eye.z + dir.z, 0.8, 0.2, 0.2, 8);
     }
   } else {
     eatTimer = 0;
@@ -310,6 +343,7 @@ game.onRender((_alpha, dt) => {
   // Furnaces run on wall time so smelting continues while UIs are open.
   furnaces.tick(dt);
   invScreen.tickFurnaceUI();
+  particles.update(dt);
   streamer.update(player.position.x, player.position.z);
   chunkRenderer.update();
   player.applyToCamera(game.camera);
@@ -346,4 +380,5 @@ game.start();
   mobs,
   game,
   chunkRenderer,
+  lightAt: (x: number, y: number, z: number) => lightAt(world, x, y, z),
 };

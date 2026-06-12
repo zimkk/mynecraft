@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CHUNK_SIZE } from '../world/Chunk';
+import { ChunkUniforms } from './ChunkMaterial';
 
 const DAY_LENGTH_S = 300; // full day-night cycle in seconds
 
@@ -21,6 +22,8 @@ export class DayNightCycle {
   private readonly scene: THREE.Scene;
   private readonly fog: THREE.Fog;
   private readonly skyColor = new THREE.Color();
+  /** Chunk shader uniforms kept in sync (dayFactor + fog). */
+  chunkUniforms: ChunkUniforms | null = null;
 
   constructor(scene: THREE.Scene, sun: THREE.DirectionalLight, ambient: THREE.AmbientLight) {
     this.scene = scene;
@@ -63,6 +66,14 @@ export class DayNightCycle {
     const viewBlocks = renderDistanceChunks * CHUNK_SIZE;
     this.fog.near = viewBlocks * 0.55;
     this.fog.far = viewBlocks * 0.98;
+
+    // Drive the chunk shader: skylight follows the sun, fog matches the sky.
+    if (this.chunkUniforms) {
+      this.chunkUniforms.dayFactor.value = 0.06 + 0.94 * daylight;
+      this.chunkUniforms.fogColor.value.copy(this.skyColor);
+      this.chunkUniforms.fogNear.value = this.fog.near;
+      this.chunkUniforms.fogFar.value = this.fog.far;
+    }
   }
 
   /** True while the sun is up (used by mob spawning/burning). */

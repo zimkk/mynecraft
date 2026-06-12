@@ -41,8 +41,9 @@ export class BlockInteraction {
   isCreative: () => boolean = () => false;
   /** Right-clicking an interactive block — return true if handled. */
   onUseBlock?: (id: Block, x: number, y: number, z: number) => boolean;
-  /** Feedback hooks (sound/particles in Phase 19). */
+  /** Feedback hooks (sound/particles). */
   onBlockBroken?: (id: Block, x: number, y: number, z: number) => void;
+  onBlockPlaced?: (id: Block, x: number, y: number, z: number) => void;
   onToolBroke?: () => void;
 
   private readonly highlight: THREE.LineSegments;
@@ -227,6 +228,7 @@ export class BlockInteraction {
     if (this.player.intersectsBlock(px, py, pz)) return;
 
     this.streamer.setBlock(px, py, pz, def.blockId);
+    this.onBlockPlaced?.(def.blockId, px, py, pz);
     if (!this.isCreative()) this.inventory.consumeOne(this.hotbar.selected);
   }
 }

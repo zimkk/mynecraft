@@ -10,8 +10,13 @@ export class Chunk {
   readonly cx: number;
   readonly cz: number;
   readonly blocks: Uint8Array;
+  /** Per-cell light levels 0-15, computed by the light engine on demand. */
+  skyLight: Uint8Array | null = null;
+  blockLight: Uint8Array | null = null;
   /** Set when blocks change and the mesh needs rebuilding. */
   dirty = true;
+  /** Set when blocks change and lighting must be recomputed before meshing. */
+  lightDirty = true;
 
   constructor(cx: number, cz: number, blocks?: Uint8Array) {
     this.cx = cx;
@@ -33,5 +38,6 @@ export class Chunk {
     if (y < 0 || y >= CHUNK_HEIGHT) return;
     this.blocks[Chunk.index(x, y, z)] = id;
     this.dirty = true;
+    this.lightDirty = true;
   }
 }

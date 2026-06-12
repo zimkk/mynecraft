@@ -276,6 +276,28 @@ function ingot(r: number, g: number, b: number): TilePainter {
  * Paints every tile into one canvas and returns it as a Three.js texture with
  * nearest-neighbor filtering for the crisp pixel-art look.
  */
+const avgColorCache = new Map<number, [number, number, number]>();
+
+/** Average RGB (0..1) of a tile — used to tint block-break particles. */
+export function tileAverageColor(atlas: THREE.CanvasTexture, tile: number): [number, number, number] {
+  let cached = avgColorCache.get(tile);
+  if (cached) return cached;
+  const src = atlas.image as HTMLCanvasElement;
+  const ctx = src.getContext('2d')!;
+  const data = ctx.getImageData(
+    (tile % ATLAS_COLS) * TILE_PX, Math.floor(tile / ATLAS_COLS) * TILE_PX, TILE_PX, TILE_PX,
+  ).data;
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 32) continue;
+    r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
+  }
+  n = Math.max(1, n);
+  cached = [r / n / 255, g / n / 255, b / n / 255];
+  avgColorCache.set(tile, cached);
+  return cached;
+}
+
 /** Extract one tile from the atlas canvas as a data URL (used for hotbar icons). */
 export function tileIconURL(atlas: THREE.CanvasTexture, tile: number, size = 32): string {
   const src = atlas.image as HTMLCanvasElement;

@@ -48,13 +48,16 @@ export class ChunkManager {
     const lz = wz - cz * CHUNK_SIZE;
     chunk.set(lx, wy, lz, id);
 
+    // Neighbors always re-mesh: their border faces sample this chunk's
+    // blocks for culling AND its light levels (which an edit can change
+    // anywhere in the chunk, e.g. placing a torch).
     const markDirty = (ncx: number, ncz: number) => {
       const n = this.chunks.get(chunkKey(ncx, ncz));
       if (n) n.dirty = true;
     };
-    if (lx === 0) markDirty(cx - 1, cz);
-    if (lx === CHUNK_SIZE - 1) markDirty(cx + 1, cz);
-    if (lz === 0) markDirty(cx, cz - 1);
-    if (lz === CHUNK_SIZE - 1) markDirty(cx, cz + 1);
+    markDirty(cx - 1, cz);
+    markDirty(cx + 1, cz);
+    markDirty(cx, cz - 1);
+    markDirty(cx, cz + 1);
   }
 }
