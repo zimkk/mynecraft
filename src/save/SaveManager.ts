@@ -1,7 +1,7 @@
 import { ItemStack } from '../items/ItemRegistry';
 import { FurnaceState } from '../world/Furnace';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export interface SaveData {
   version: number;
@@ -20,6 +20,10 @@ export interface SaveData {
   inventory: Array<ItemStack | null>;
   /** v3+: furnace block-entity states keyed by "x,y,z". */
   furnaces: Array<[string, FurnaceState]>;
+  /** v4+: survival stats + game mode. */
+  health: number;
+  hunger: number;
+  gameMode: 'survival' | 'creative';
 }
 
 /**
@@ -36,6 +40,12 @@ function migrate(data: SaveData): SaveData | null {
   if (data.version === 2) {
     data.furnaces = [];
     data.version = 3;
+  }
+  if (data.version === 3) {
+    data.health = 20;
+    data.hunger = 20;
+    data.gameMode = 'survival';
+    data.version = 4;
   }
   if (data.version !== SAVE_VERSION) return null;
   return data;

@@ -92,6 +92,36 @@
         position: fixed; z-index: 20; pointer-events: none; width: 36px; height: 36px;
       }
       #inv-cursor img { width: 32px; height: 32px; image-rendering: pixelated; filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.6)); }
+      #stats-hud {
+        position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
+        pointer-events: none; user-select: none;
+      }
+      .stat-top { display: flex; gap: 60px; justify-content: center; }
+      .stat-row { display: flex; gap: 1px; font-size: 15px; }
+      .stat-row.air { justify-content: flex-end; margin-bottom: 2px; color: #7db8e8; }
+      .stat-row span { text-shadow: 1px 1px 1px #000; }
+      .hearts .full { color: #e83a3a; }
+      .hearts .half { color: #e83a3a; opacity: 0.55; }
+      .hearts .empty { color: #3a3a3a; }
+      .food .full { filter: none; }
+      .food .half { filter: grayscale(0.5) brightness(0.85); }
+      .food .empty { filter: grayscale(1) brightness(0.4); }
+      .air .half { opacity: 0.5; }
+      .air .empty { visibility: hidden; }
+      #damage-flash {
+        position: fixed; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, #c00 130%);
+        opacity: 0; pointer-events: none; z-index: 8; transition: opacity 0.1s;
+      }
+      #death-screen {
+        position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+        background: rgba(120, 0, 0, 0.45); z-index: 11; font-family: 'Consolas', monospace;
+      }
+      .death-panel { text-align: center; color: #fff; }
+      .death-panel h1 { font-size: 36px; text-shadow: 2px 2px 0 #000; }
+      .death-panel button {
+        font-family: inherit; font-size: 16px; padding: 10px 28px; cursor: pointer;
+        background: #3a3f4b; color: #fff; border: 1px solid #777; border-radius: 5px;
+      }
       #inv-cursor .count {
         position: absolute; bottom: -2px; right: -2px; font-size: 13px; font-weight: bold;
         font-family: 'Consolas', monospace; color: #fff; text-shadow: 1px 1px 0 #000;

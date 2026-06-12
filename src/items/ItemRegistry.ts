@@ -79,6 +79,9 @@ registerBlockItem(Block.CraftingTable, 'crafting_table', 'Crafting Table');
 registerBlockItem(Block.Furnace, 'furnace', 'Furnace');
 registerBlockItem(Block.Torch, 'torch', 'Torch');
 
+// Food.
+register({ id: 'apple', name: 'Apple', type: 'food', maxStack: 64, icon: Tile.Apple, food: { hunger: 4, saturation: 2.4 } });
+
 // ---- Tools: one item per class × tier, icons from the atlas tool grid ----
 
 const TOOL_CLASS_LIST: ToolClass[] = ['pickaxe', 'axe', 'shovel', 'sword', 'hoe'];

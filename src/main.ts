@@ -17,6 +17,8 @@ import { Inventory } from './items/Inventory';
 import { EntityManager } from './entities/EntityManager';
 import { InventoryScreen } from './ui/InventoryScreen';
 import { FurnaceManager } from './world/Furnace';
+import { StatsHud } from './ui/StatsHud';
+import { itemDef } from './items/ItemRegistry';
 import { Menu, loadRenderDistance } from './ui/Menu';
 
 const app = document.getElementById('app')!;
@@ -111,10 +113,47 @@ const saveManager = new SaveManager((): SaveData => ({
   time: dayNight.time,
   inventory: inventory.toJSON(),
   furnaces: furnaces.toJSON(),
+  health: player.health,
+  hunger: player.hunger,
+  gameMode: creativeMode ? 'creative' : 'survival',
 }));
 
-// Game mode: runtime flag for now; Phase 17 wires full survival/creative rules.
-let creativeMode = false;
+// Game mode: persisted in the save; creative = fly, invulnerable, instant
+// break, infinite blocks. Synced onto the player each toggle.
+let creativeMode = save?.gameMode === 'creative';
+player.creative = creativeMode;
+if (save) {
+  player.health = save.health ?? 20;
+  player.hunger = save.hunger ?? 20;
+}
+
+// World spawn for respawns (where a fresh player would appear).
+const worldSpawn = new THREE.Vector3(
+  Math.floor(spawnX) + 0.5,
+  generator.heightAt(Math.floor(spawnX), Math.floor(spawnZ)) + 1,
+  Math.floor(spawnZ) + 0.5,
+);
+
+// Survival HUD + death flow: dying spills the inventory where you fell.
+const statsHud = new StatsHud(document.body, () => {
+  statsHud.showDeath(false);
+  player.respawn(worldSpawn);
+  game.renderer.domElement.requestPointerLock();
+});
+player.onDamage = () => statsHud.flash();
+player.onDeath = () => {
+  for (let i = 0; i < inventory.slots.length; i++) {
+    const stack = inventory.get(i);
+    if (stack) {
+      const e = entities.dropItem(stack, player.eyePosition);
+      e.velocity.set((Math.random() - 0.5) * 5, 3, (Math.random() - 0.5) * 5);
+      e.pickupDelay = 2;
+      inventory.set(i, null);
+    }
+  }
+  input.unlock();
+  statsHud.showDeath(true);
+};
 
 // Inventory screen (E). While open the pointer is unlocked but the pause
 // menu must NOT appear — the pointerlockchange handler checks invScreen.open.
@@ -171,6 +210,7 @@ const menu = new Menu(
     exportWorld: () => saveManager.exportToFile(),
     toggleGameMode: () => {
       creativeMode = !creativeMode;
+      player.creative = creativeMode;
       return creativeMode ? 'Creative' : 'Survival';
     },
   },
@@ -180,12 +220,14 @@ document.addEventListener('pointerlockchange', () => {
   if (input.isLocked) {
     menu.visible = false;
   } else {
-    // Esc from gameplay → pause menu; but not when the inventory screen
-    // deliberately released the lock.
-    menu.visible = !invScreen.open;
+    // Esc from gameplay → pause menu; but not when the inventory screen or
+    // death screen deliberately released the lock.
+    menu.visible = !invScreen.open && !player.dead;
     saveManager.save();
   }
 });
+
+let eatTimer = 0;
 
 game.onUpdate((dt) => {
   // Game pauses (player/physics frozen) while any UI owns the pointer.
@@ -212,7 +254,22 @@ game.onUpdate((dt) => {
   player.update(dt, input);
   dayNight.update(dt, player.position, streamer.renderDistance);
   hotbar.update(dt, input);
-  interaction.update(dt, input);
+
+  // Eating: hold RMB with food selected (1.2 s), then restore hunger.
+  const held = hotbar.selectedStack;
+  const food = held ? itemDef(held.id)?.food : undefined;
+  if (food && input.buttonDown(2) && !player.creative && player.hunger < 20) {
+    eatTimer += dt;
+    if (eatTimer >= 1.2) {
+      eatTimer = 0;
+      player.eat(food.hunger, food.saturation);
+      inventory.consumeOne(hotbar.selected);
+    }
+  } else {
+    eatTimer = 0;
+    interaction.update(dt, input);
+  }
+
   entities.update(dt, player.position, inventory);
 });
 
@@ -225,6 +282,7 @@ game.onRender((_alpha, dt) => {
   streamer.update(player.position.x, player.position.z);
   chunkRenderer.update();
   player.applyToCamera(game.camera);
+  statsHud.update(dt, player);
   debug.update(input, game, player, streamer, chunkRenderer, interaction, dayNight.clock);
   fpsEl.textContent = `FPS: ${game.fps}`;
   input.endFrame();

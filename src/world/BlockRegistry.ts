@@ -52,6 +52,7 @@ export const Tile = {
   ToolBase: 26,
   /** Block-break crack stages occupy tiles 56..59. */
   CrackBase: 56,
+  Apple: 60,
 } as const;
 
 export interface BlockDef {
@@ -77,6 +78,8 @@ export interface BlockDef {
   collidable: boolean;
   /** Non-cube render model. */
   model?: 'torch';
+  /** Bonus drop rolled on break (e.g. apples from leaves). */
+  randomDrop?: { id: string; chance: number };
 }
 
 interface DefExtra {
@@ -120,7 +123,10 @@ export const BLOCKS: readonly BlockDef[] = [
   def(Block.Log, 'Log', true, false, { top: Tile.LogEnd, bottom: Tile.LogEnd, side: Tile.LogSide }, { hardness: 2, tool: 'axe' }),
   // "Fast" leaves: rendered fully opaque so they occlude correctly and stay
   // out of the transparent pass (which has depth-write off and sorts poorly).
-  def(Block.Leaves, 'Leaves', true, false, { all: Tile.Leaves }, { drops: null, hardness: 0.25, tool: 'sword' }),
+  {
+    ...def(Block.Leaves, 'Leaves', true, false, { all: Tile.Leaves }, { drops: null, hardness: 0.25, tool: 'sword' }),
+    randomDrop: { id: 'apple', chance: 0.08 },
+  },
   def(Block.Plank, 'Plank', true, false, { all: Tile.Plank }, { drops: 'plank', hardness: 2, tool: 'axe' }),
   def(Block.Glass, 'Glass', true, true, { all: Tile.Glass }, { drops: null, hardness: 0.3 }),
   def(Block.Cobblestone, 'Cobblestone', true, false, { all: Tile.Cobblestone }, { hardness: 2, tool: 'pickaxe', requiresTool: true }),

@@ -184,6 +184,12 @@ export class BlockInteraction {
         new THREE.Vector3(target.x + 0.5, target.y + 0.5, target.z + 0.5),
       );
     }
+    if (canHarvest && def.randomDrop && Math.random() < def.randomDrop.chance && itemDef(def.randomDrop.id)) {
+      this.entities.dropItem(
+        makeStack(def.randomDrop.id, 1),
+        new THREE.Vector3(target.x + 0.5, target.y + 0.5, target.z + 0.5),
+      );
+    }
 
     // Durability: one point per block (only blocks with real hardness).
     if (usedTool && def.hardness > 0.05) {

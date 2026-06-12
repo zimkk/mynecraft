@@ -103,6 +103,16 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - Breaking a furnace spills its contents as item drops. Save bumped to **v3** (furnace states) with v2→v3 migration.
 - **Verify (scripted):** 3 iron ore + 1 coal → 3 iron ingots in 15.2 s with no UI open; fuel decremented 15 s of 40; input emptied.
 
+## Phase 17 — Survival Mechanics & Game Modes ✅
+- Health (20) with fall damage (past 3.5-block grace), drowning (10 s air, then 2 dmg/s), void damage; red vignette flash on hit.
+- Hunger (20) + saturation buffer: passive drain, sprint/jump exhaustion; ≥18 hunger regenerates health (costing exhaustion); 0 hunger starves down to half a heart.
+- Eating: hold RMB with food (1.2 s); apple registered (leaves have an 8% bonus apple drop).
+- Death: inventory spills as drops where you fell, death screen, respawn at world spawn with full stats.
+- Game modes persisted in the save (**v4**: health/hunger/gameMode): creative = fly/invulnerable/instant-break/infinite + hidden survival HUD + palette; survival = no flight.
+- HUD: hearts, drumsticks, air bubbles (shown only underwater) above the hotbar.
+- **Verify (scripted + visual):** damage 5 → 15 HP; eat capped at 20; lethal damage → death screen, inventory spilled; respawn restored 20/20 at spawn; HUD renders all three rows.
+- Known simplification: water has no swim physics yet (normal gravity underwater).
+
 ## Decisions & known issues
 - Phases were verified in-browser (screenshots + scripted checks via the `window.vox` dev hook).
 - Water is rendered as a transparent pass without surface animation; swimming physics not implemented (water is non-solid — you sink/walk through it).

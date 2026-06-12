@@ -174,6 +174,18 @@ function toolPart(cls: string, x: number, y: number): 'head' | 'handle' | null {
   return null;
 }
 
+PAINTERS[Tile.Apple] = (x, y, rng) => {
+  // Stem + leaf on top, round red body.
+  if (y <= 2 && x >= 7 && x <= 8) return [96, 70, 40, 255];
+  if (y === 2 && x >= 9 && x <= 10) return [80, 150, 60, 255];
+  const dx = x - 7.5;
+  const dy = y - 9;
+  if (dx * dx + dy * dy * 1.2 > 28) return [0, 0, 0, 0];
+  const n = (rng() - 0.5) * 24;
+  const hi = dx + dy < -4 ? 35 : 0;
+  return [200 + n + hi, 40 + n, 35 + n, 255];
+};
+
 // Crack stages (tiles CrackBase..CrackBase+3): denser dark fissures per stage.
 for (let stage = 0; stage < 4; stage++) {
   PAINTERS[Tile.CrackBase + stage] = (x, y) => {

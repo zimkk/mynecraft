@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ChunkManager } from '../world/ChunkManager';
-import { isCollidable } from '../world/BlockRegistry';
+import { isCollidable, Block } from '../world/BlockRegistry';
 import { Input } from '../core/Input';
 
 const WIDTH = 0.6;       // AABB footprint (x/z)
@@ -29,6 +29,25 @@ export class Player {
   pitch = 0;
   flying = false;
   onGround = false;
+  /** Creative: flight allowed, no damage/hunger. Set from the game mode. */
+  creative = false;
+  dead = false;
+
+  // Survival stats (20 = 10 hearts / drumsticks).
+  health = 20;
+  hunger = 20;
+  saturation = 5;
+  air = 10;
+  static readonly MAX_AIR = 10;
+
+  onDamage?: (amount: number) => void;
+  onDeath?: () => void;
+
+  private fallDistance = 0;
+  private exhaustion = 0;
+  private regenTimer = 0;
+  private starveTimer = 0;
+  private drownTimer = 0;
   private lastSpaceTap = 0;
   private readonly world: ChunkManager;
 
@@ -49,7 +68,38 @@ export class Player {
     );
   }
 
+  /** Apply damage (creative players are invulnerable). */
+  damage(amount: number): void {
+    if (this.creative || this.dead || amount <= 0) return;
+    this.health = Math.max(0, this.health - amount);
+    this.onDamage?.(amount);
+    if (this.health <= 0) {
+      this.dead = true;
+      this.onDeath?.();
+    }
+  }
+
+  /** Eat food: restores hunger and saturation. */
+  eat(hungerValue: number, saturationValue: number): void {
+    this.hunger = Math.min(20, this.hunger + hungerValue);
+    this.saturation = Math.min(this.hunger, this.saturation + saturationValue);
+  }
+
+  respawn(at: THREE.Vector3): void {
+    this.position.copy(at);
+    this.velocity.set(0, 0, 0);
+    this.health = 20;
+    this.hunger = 20;
+    this.saturation = 5;
+    this.air = Player.MAX_AIR;
+    this.fallDistance = 0;
+    this.dead = false;
+    this.flying = false;
+  }
+
   update(dt: number, input: Input): void {
+    if (this.dead) return; // frozen until respawn
+
     // --- Mouse look ---
     const { dx, dy } = input.consumeMouseDelta();
     this.yaw -= dx * MOUSE_SENS;
@@ -57,8 +107,8 @@ export class Player {
     const maxPitch = Math.PI / 2 - 0.01;
     this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
 
-    // --- Fly toggle: double-tap space ---
-    if (input.justPressed('Space')) {
+    // --- Fly toggle (creative only): double-tap space or F ---
+    if (this.creative && input.justPressed('Space')) {
       const now = performance.now();
       if (now - this.lastSpaceTap < DOUBLE_TAP_MS) {
         this.flying = !this.flying;
@@ -68,10 +118,11 @@ export class Player {
         this.lastSpaceTap = now;
       }
     }
-    if (input.justPressed('KeyF')) {
+    if (this.creative && input.justPressed('KeyF')) {
       this.flying = !this.flying;
       this.velocity.y = 0;
     }
+    if (!this.creative) this.flying = false;
 
     // --- Horizontal movement relative to yaw ---
     let mx = 0;
@@ -105,19 +156,90 @@ export class Player {
       if (input.isDown('Space') && this.onGround) {
         this.velocity.y = JUMP_SPEED;
         this.onGround = false;
+        this.exhaustion += 0.1;
       }
     }
 
     // --- Move with collision, one axis at a time ---
+    const wasFalling = !this.onGround && this.velocity.y < 0;
+    if (wasFalling && !this.flying) this.fallDistance += -this.velocity.y * dt;
     this.onGround = false;
     this.moveAxis(0, this.velocity.x * dt);
     this.moveAxis(1, this.velocity.y * dt);
     this.moveAxis(2, this.velocity.z * dt);
 
+    // --- Fall damage: hits past a 3.5-block grace ---
+    if (this.onGround && this.fallDistance > 0) {
+      if (!this.flying && this.fallDistance > 3.5) {
+        this.damage(Math.round(this.fallDistance - 3));
+      }
+      this.fallDistance = 0;
+    }
+    if (this.flying) this.fallDistance = 0;
+
+    this.updateSurvivalStats(dt, sprint && len > 0);
+
     // Fell out of the world → pop back above ground.
     if (this.position.y < -16) {
       this.position.y = 100;
       this.velocity.set(0, 0, 0);
+      this.damage(4);
+    }
+  }
+
+  /** Hunger, regen, starvation, drowning — survival mode only. */
+  private updateSurvivalStats(dt: number, sprinting: boolean): void {
+    if (this.creative) {
+      this.air = Player.MAX_AIR;
+      return;
+    }
+
+    // Drowning: eye underwater drains air, then 2 damage per second.
+    const eye = this.eyePosition;
+    const inWater = this.world.getBlock(Math.floor(eye.x), Math.floor(eye.y), Math.floor(eye.z)) === Block.Water;
+    if (inWater) {
+      this.air = Math.max(0, this.air - dt);
+      if (this.air <= 0) {
+        this.drownTimer += dt;
+        if (this.drownTimer >= 1) {
+          this.drownTimer = 0;
+          this.damage(2);
+        }
+      }
+    } else {
+      this.air = Math.min(Player.MAX_AIR, this.air + dt * 2);
+      this.drownTimer = 0;
+    }
+
+    // Hunger: passive trickle + activity costs, buffered through saturation.
+    this.exhaustion += dt * (sprinting ? 0.1 : 0.005);
+    if (this.exhaustion >= 4) {
+      this.exhaustion -= 4;
+      if (this.saturation > 0) this.saturation = Math.max(0, this.saturation - 1);
+      else this.hunger = Math.max(0, this.hunger - 1);
+    }
+
+    // Regeneration: nearly full hunger heals over time (and costs hunger).
+    if (this.hunger >= 18 && this.health < 20) {
+      this.regenTimer += dt;
+      if (this.regenTimer >= 2.5) {
+        this.regenTimer = 0;
+        this.health = Math.min(20, this.health + 1);
+        this.exhaustion += 1.5;
+      }
+    } else {
+      this.regenTimer = 0;
+    }
+
+    // Starvation: empty hunger chips health down to half a heart.
+    if (this.hunger <= 0) {
+      this.starveTimer += dt;
+      if (this.starveTimer >= 2) {
+        this.starveTimer = 0;
+        if (this.health > 1) this.damage(1);
+      }
+    } else {
+      this.starveTimer = 0;
     }
   }
 
