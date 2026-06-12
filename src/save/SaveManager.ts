@@ -53,6 +53,7 @@ function migrate(data: SaveData): SaveData | null {
 
 const SAVE_KEY = 'voxelcraft.save.v1';
 const NEW_SEED_KEY = 'voxelcraft.newseed';
+const NEW_MODE_KEY = 'voxelcraft.newmode';
 const AUTOSAVE_INTERVAL_S = 15;
 
 /**
@@ -106,10 +107,18 @@ export class SaveManager {
     return seed;
   }
 
-  /** Stage a fresh world with the given seed and reload. */
-  static newWorld(seed: string): void {
+  /** Game mode staged alongside a new seed. */
+  static consumeNewMode(): 'survival' | 'creative' {
+    const mode = localStorage.getItem(NEW_MODE_KEY);
+    localStorage.removeItem(NEW_MODE_KEY);
+    return mode === 'creative' ? 'creative' : 'survival';
+  }
+
+  /** Stage a fresh world with the given seed + mode and reload. */
+  static newWorld(seed: string, mode: 'survival' | 'creative' = 'survival'): void {
     localStorage.removeItem(SAVE_KEY);
     localStorage.setItem(NEW_SEED_KEY, seed);
+    localStorage.setItem(NEW_MODE_KEY, mode);
     location.reload();
   }
 

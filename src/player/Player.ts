@@ -32,6 +32,8 @@ export class Player {
   /** Creative: flight allowed, no damage/hunger. Set from the game mode. */
   creative = false;
   dead = false;
+  /** Mouse sensitivity multiplier (settings). */
+  sensitivity = 1;
 
   // Survival stats (20 = 10 hearts / drumsticks).
   health = 20;
@@ -113,8 +115,8 @@ export class Player {
 
     // --- Mouse look ---
     const { dx, dy } = input.consumeMouseDelta();
-    this.yaw -= dx * MOUSE_SENS;
-    this.pitch -= dy * MOUSE_SENS;
+    this.yaw -= dx * MOUSE_SENS * this.sensitivity;
+    this.pitch -= dy * MOUSE_SENS * this.sensitivity;
     const maxPitch = Math.PI / 2 - 0.01;
     this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
 

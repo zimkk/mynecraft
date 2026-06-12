@@ -25,7 +25,7 @@ import { blockDef } from './world/BlockRegistry';
 import { tileAverageColor } from './rendering/TextureAtlas';
 import { lightAt } from './rendering/Lighting';
 import { itemDef } from './items/ItemRegistry';
-import { Menu, loadRenderDistance } from './ui/Menu';
+import { Menu, loadSettings } from './ui/Menu';
 
 const app = document.getElementById('app')!;
 const game = new Game(app);
@@ -50,7 +50,8 @@ const generator = new TerrainGenerator(SEED);
 const atlas = buildAtlasTexture();
 const chunkRenderer = new ChunkRenderer(game.scene, world, atlas);
 dayNight.chunkUniforms = chunkRenderer.uniforms;
-const streamer = new ChunkStreamer(world, generator, chunkRenderer, loadRenderDistance());
+const settings = loadSettings();
+const streamer = new ChunkStreamer(world, generator, chunkRenderer, settings.renderDistance);
 if (save) {
   for (const [key, id] of save.edits) streamer.edits.set(key, id);
 }
@@ -126,10 +127,13 @@ const saveManager = new SaveManager((): SaveData => ({
   gameMode: creativeMode ? 'creative' : 'survival',
 }));
 
-// Game mode: persisted in the save; creative = fly, invulnerable, instant
-// break, infinite blocks. Synced onto the player each toggle.
-let creativeMode = save?.gameMode === 'creative';
+// Game mode: persisted in the save (a staged "New World" carries its own
+// mode); creative = fly, invulnerable, instant break, infinite blocks.
+let creativeMode = newSeed !== null
+  ? SaveManager.consumeNewMode() === 'creative'
+  : save?.gameMode === 'creative';
 player.creative = creativeMode;
+player.sensitivity = settings.sensitivity;
 if (save) {
   player.health = save.health ?? 20;
   player.hunger = save.hunger ?? 20;
@@ -212,6 +216,7 @@ interaction.onUseBlock = (id, x, y, z) => {
 // Particles + procedural sound feedback.
 const particles = new Particles(game.scene);
 const sound = new Sound();
+sound.volume = settings.volume;
 
 function breakSoundFor(id: Block): 'break_stone' | 'break_wood' | 'break_dirt' {
   const def = blockDef(id);
@@ -247,6 +252,12 @@ const menu = new Menu(
     setRenderDistance: (chunks) => {
       streamer.renderDistance = chunks;
     },
+    setSensitivity: (mult) => {
+      player.sensitivity = mult;
+    },
+    setVolume: (volume) => {
+      sound.volume = volume;
+    },
     exportWorld: () => saveManager.exportToFile(),
     toggleGameMode: () => {
       creativeMode = !creativeMode;
@@ -254,7 +265,7 @@ const menu = new Menu(
       return creativeMode ? 'Creative' : 'Survival';
     },
   },
-  streamer.renderDistance,
+  creativeMode ? 'Creative' : 'Survival',
 );
 document.addEventListener('pointerlockchange', () => {
   if (input.isLocked) {

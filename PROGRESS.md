@@ -129,6 +129,14 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - **Sound:** procedural WebAudio (no assets) — filtered-noise thuds for break/place (pitch by material: stone/wood/dirt), oscillator blips for pickup/hurt/mob-hit, tool-break crack, eat crunch; world sounds attenuate with distance.
 - **Verify (scripted + visual):** cave at y16 renders near-black; placing a torch lit it instantly (mesh update < 1 frame, edit cost 0.2 ms); probed light values: torch cell 14, adjacent air 13, two away 12, opaque cells 0; surface skylight 15; dusk surface render dims correctly with fog.
 
+## Phase 20 — Balance, Polish & Persistence ✅
+- Settings menu: render distance (live), mouse sensitivity (0.2-3×), volume — all persisted in localStorage with validation/clamping on load.
+- New World now takes a game mode (survival/creative select) staged alongside the seed across the reload.
+- Save format v4 covers seed, edit delta, player pos/look, inventory, health/hunger, game mode, time of day, furnace states; migrations v1→v4 chain; mobs respawn by design.
+- Controls list updated in the pause menu and README; README rewritten with the full architecture overview and gameplay-loop doc.
+- Final QA: typecheck clean, zero console errors/warnings, settings live-apply verified (sensitivity slider → player), 164-180 FPS at render distance 12 in the dev preview.
+- Balance: progression wood→stone→iron→diamond enforced by harvest levels; coal 8-smelt fuel; zombie 3 dmg / 1.1 s; caps 10 hostile / 8 passive.
+
 ## Decisions & known issues
 - Phases were verified in-browser (screenshots + scripted checks via the `window.vox` dev hook).
 - Water is rendered as a transparent pass without surface animation; swimming physics not implemented (water is non-solid — you sink/walk through it).
