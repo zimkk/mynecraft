@@ -137,6 +137,10 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - Final QA: typecheck clean, zero console errors/warnings, settings live-apply verified (sensitivity slider → player), 164-180 FPS at render distance 12 in the dev preview.
 - Balance: progression wood→stone→iron→diamond enforced by harvest levels; coal 8-smelt fuel; zombie 3 dmg / 1.1 s; caps 10 hostile / 8 passive.
 
+## WASD direction fix ✅
+- **Movement was mirrored on X as you turned.** The yaw-rotation of the WASD input vector had both cross-terms negated (`vx = mx·cos − mz·sin`, `vz = mz·cos + mx·sin`). Correct rotation for camera forward `(−sin,−cos)` / right `(cos,−sin)` with W=`mz−1`, D=`mx+1` is `vx = mx·cos + mz·sin`, `vz = mz·cos − mx·sin`. It happened to be correct only near yaw≈0 (sin≈0), which is why it felt fine facing one way and drifted wrong after looking around.
+- **Verify (scripted):** W·lookDir = 1.0, S·lookDir = −1.0, D·cameraRight = 1.0 at yaw 0/45/90/180/270 — exact at every angle.
+
 ## Controls & interaction fix pass ✅
 1. **One-shot input double/stale firing:** `justPressed`/`buttonJustPressed` were cleared once per rendered frame, but the fixed-timestep loop can run twice per frame — a single Space press could read as a double-tap (random flight toggles in creative), Q dropped two items, melee swung twice. Now cleared at the end of each fixed tick; input buffered while paused is discarded (`clearTransient`), so nothing fires and the camera doesn't jerk on resume.
 2. **Phantom fall damage via water:** fall distance kept accumulating while falling into water, then applied on the first solid landing when wading ashore. Water (and flight) now zero fall distance.

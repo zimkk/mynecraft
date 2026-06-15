@@ -160,11 +160,14 @@ export class Player {
       : (sprint ? SPRINT_SPEED : WALK_SPEED);
     if (inWaterBody && !this.flying) speed *= 0.55; // water drag
 
-    // Rotate input by yaw: forward is -Z in camera space.
+    // Rotate the WASD input vector into world space by yaw. Camera forward is
+    // (-sin, -cos) and camera right is (cos, -sin); with W = mz-1 (forward)
+    // and D = mx+1 (right), the world velocity is right*mx + forward*(-mz):
+    //   vx = mx*cos + mz*sin,  vz = mz*cos - mx*sin.
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
-    this.velocity.x = (mx * cos - mz * sin) * speed + this.kbX;
-    this.velocity.z = (mz * cos + mx * sin) * speed + this.kbZ;
+    this.velocity.x = (mx * cos + mz * sin) * speed + this.kbX;
+    this.velocity.z = (mz * cos - mx * sin) * speed + this.kbZ;
     const kbDecay = Math.max(0, 1 - 6 * dt);
     this.kbX *= kbDecay;
     this.kbZ *= kbDecay;
