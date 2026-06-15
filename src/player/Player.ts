@@ -45,6 +45,9 @@ export class Player {
   onDamage?: (amount: number) => void;
   onDeath?: () => void;
 
+  /** Persistent horizontal velocity (excludes knockback) for momentum/friction. */
+  private hvx = 0;
+  private hvz = 0;
   /** Knockback impulse (from mob hits), decays quickly. */
   private kbX = 0;
   private kbZ = 0;
@@ -101,6 +104,8 @@ export class Player {
   respawn(at: THREE.Vector3): void {
     this.position.copy(at);
     this.velocity.set(0, 0, 0);
+    this.hvx = 0;
+    this.hvz = 0;
     this.health = 20;
     this.hunger = 20;
     this.saturation = 5;
@@ -162,12 +167,27 @@ export class Player {
 
     // Rotate the WASD input vector into world space by yaw. Camera forward is
     // (-sin, -cos) and camera right is (cos, -sin); with W = mz-1 (forward)
-    // and D = mx+1 (right), the world velocity is right*mx + forward*(-mz):
+    // and D = mx+1 (right), the target velocity is right*mx + forward*(-mz):
     //   vx = mx*cos + mz*sin,  vz = mz*cos - mx*sin.
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
-    this.velocity.x = (mx * cos + mz * sin) * speed + this.kbX;
-    this.velocity.z = (mz * cos - mx * sin) * speed + this.kbZ;
+    const tvx = (mx * cos + mz * sin) * speed;
+    const tvz = (mz * cos - mx * sin) * speed;
+
+    // Minecraft-like horizontal momentum: ease the velocity toward the target
+    // rather than snapping. Ground acceleration is snappy (stays responsive);
+    // air control is weaker so a jump keeps its momentum. Creative flight is
+    // exact (instant) for precise building.
+    if (this.flying) {
+      this.hvx = tvx;
+      this.hvz = tvz;
+    } else {
+      const a = Math.min(1, (this.onGround ? 16 : 6) * dt);
+      this.hvx += (tvx - this.hvx) * a;
+      this.hvz += (tvz - this.hvz) * a;
+    }
+    this.velocity.x = this.hvx + this.kbX;
+    this.velocity.z = this.hvz + this.kbZ;
     const kbDecay = Math.max(0, 1 - 6 * dt);
     this.kbX *= kbDecay;
     this.kbZ *= kbDecay;
@@ -178,10 +198,11 @@ export class Player {
       if (input.isDown('Space')) this.velocity.y = speed;
       if (input.isDown('KeyC')) this.velocity.y = -speed;
     } else if (inWaterBody) {
-      // Swimming: hold Space to rise, otherwise sink slowly. Buoyancy caps
-      // both directions well below air speeds.
-      this.velocity.y += (input.isDown('Space') ? 16 : GRAVITY * 0.25) * dt;
-      this.velocity.y = Math.max(-4, Math.min(3.5, this.velocity.y));
+      // Buoyant water: strong vertical drag eases velocity toward a gentle
+      // rise (holding Space) or a slow sink, instead of free-falling. This
+      // also kills any fast downward speed carried in from a fall.
+      const targetVy = input.isDown('Space') ? 3.0 : -1.4;
+      this.velocity.y += (targetVy - this.velocity.y) * Math.min(1, 6 * dt);
     } else {
       this.velocity.y += GRAVITY * dt;
       if (this.velocity.y < -60) this.velocity.y = -60; // terminal velocity
@@ -217,6 +238,8 @@ export class Player {
     if (this.position.y < -16) {
       this.position.y = 100;
       this.velocity.set(0, 0, 0);
+      this.hvx = 0;
+      this.hvz = 0;
       this.damage(4);
     }
   }

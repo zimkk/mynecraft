@@ -68,17 +68,15 @@ export class ItemEntity {
     p.z += this.velocity.z * dt;
     p.y += this.velocity.y * dt;
 
-    // Ground collision: sample the cell the entity center is in; if solid,
-    // rest on top of the block below.
+    // Ground collision: sample just below the entity's base (the small offset
+    // avoids per-tick flapping when the base sits exactly on a block boundary)
+    // and, while descending, rest flush on top of that block.
     const half = SIZE / 2;
-    const blockAt = (y: number) => world.getBlock(Math.floor(p.x), Math.floor(y), Math.floor(p.z));
-    const below = blockAt(p.y - half);
-    if (isCollidable(below)) {
-      const top = Math.floor(p.y - half) + 1;
-      if (p.y - half < top) {
-        p.y = top + half;
-        this.velocity.y = 0;
-      }
+    const baseY = p.y - half;
+    const groundCell = world.getBlock(Math.floor(p.x), Math.floor(baseY - 0.02), Math.floor(p.z));
+    if (this.velocity.y <= 0 && isCollidable(groundCell)) {
+      p.y = Math.floor(baseY - 0.02) + 1 + half;
+      this.velocity.y = 0;
     }
     if (p.y < -16) this.dead = true;
 

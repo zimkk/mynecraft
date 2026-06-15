@@ -1,4 +1,4 @@
-# VoxelCraft — Build Progress
+# Mynecraft — Build Progress  *(by Hassan Nazir)*
 
 ## Stabilization pass (before Phase 11) ✅
 Bugs found and fixed:
@@ -136,6 +136,15 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - Controls list updated in the pause menu and README; README rewritten with the full architecture overview and gameplay-loop doc.
 - Final QA: typecheck clean, zero console errors/warnings, settings live-apply verified (sensitivity slider → player), 164-180 FPS at render distance 12 in the dev preview.
 - Balance: progression wood→stone→iron→diamond enforced by harvest levels; coal 8-smelt fuel; zombie 3 dmg / 1.1 s; caps 10 hostile / 8 passive.
+
+## Rename + physics audit ✅
+Renamed the game to **Mynecraft — by Hassan Nazir** (browser title, menu title + byline, package name, README/PROGRESS, save export filename). localStorage keys kept as `voxelcraft.*` so existing saves don't break.
+
+Physics audited by running the live simulation through assertions (drop/land, standing stability, wall, ceiling, fall-damage curve, swimming, mob/item landing):
+- **Solid as-is** (no change needed): player & mob AABB collision land flush (rest = floor-top exactly, 0 penetration), 0 standing jitter, flush wall stop, no ceiling clip; fall damage is monotonic and matches MC's `fall − 3` (h4=1, h6=3, h10=7, h20=17, h30=lethal). Earlier non-monotonic fall numbers were a test-harness artifact (`onGround` leaking between synthetic drops), not a game bug.
+- **Fixed — swimming sink far too fast:** vertical water motion was effectively free-fall capped at −4 m/s (you plummeted through water). Replaced with buoyant drag easing toward −1.4 (sink) / +3.0 (hold Space to rise); also kills carried-in fall speed on entry. Verified: entering at −15 m/s settles to −1.6.
+- **Fixed — no movement momentum (robotic instant start/stop):** added Minecraft-style horizontal acceleration — eases toward target velocity (snappy 16/s on ground, weaker 6/s air control so jumps keep momentum; creative flight stays instant for precise building). Verified: ramps to full 4.3 m/s in ~0.3 s, slides to rest in ~0.2 s, and W still tracks the look direction exactly (dot = 1.0).
+- **Fixed — dropped-item rest jitter:** ground sample now reads just below the item base (avoids per-tick flapping at block boundaries) and only rests while descending.
 
 ## Minecraft GUI styling pass ✅
 Reworked all menus/HUD to match classic Minecraft Java Edition (presentation only — interaction logic untouched):

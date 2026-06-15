@@ -50,7 +50,8 @@ export class Menu {
     this.root.id = 'menu';
     this.root.innerHTML = `
       <div class="panel">
-        <h1>VoxelCraft</h1>
+        <h1>Mynecraft</h1>
+        <div class="byline">by Hassan Nazir</div>
         <button id="m-resume">▶ Play</button>
         <div class="row">
           <label>Render distance: <span id="m-rd-val">${s.renderDistance}</span> chunks</label>

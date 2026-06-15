@@ -134,7 +134,7 @@ export class SaveManager {
     const blob = new Blob([JSON.stringify(this.getState(), null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `voxelcraft-world-${Date.now()}.json`;
+    a.download = `mynecraft-world-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -143,7 +143,7 @@ export class SaveManager {
   static async importFromFile(file: File): Promise<void> {
     const text = await file.text();
     const data = migrate(JSON.parse(text) as SaveData);
-    if (!data) throw new Error('Not a valid VoxelCraft save file');
+    if (!data) throw new Error('Not a valid Mynecraft save file');
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     location.reload();
   }

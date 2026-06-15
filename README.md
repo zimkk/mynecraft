@@ -1,4 +1,4 @@
-# VoxelCraft
+# Mynecraft — by Hassan Nazir
 
 A Minecraft-style voxel game built from scratch in **TypeScript + Three.js + Vite**, running entirely in the browser. Procedural terrain with trees, ores and caves; survival gameplay with crafting, tools, smelting, hunger, mobs and combat; flood-fill lighting with torches and a day/night cycle; full save/load. Everything — chunk meshing, AABB physics, voxel raycasting, lighting, AI — is hand-written; the only runtime dependencies are `three` and `simplex-noise`.
 
