@@ -137,6 +137,17 @@ All phases complete. `npm run dev` → http://localhost:5173. Zero TypeScript er
 - Final QA: typecheck clean, zero console errors/warnings, settings live-apply verified (sensitivity slider → player), 164-180 FPS at render distance 12 in the dev preview.
 - Balance: progression wood→stone→iron→diamond enforced by harvest levels; coal 8-smelt fuel; zombie 3 dmg / 1.1 s; caps 10 hostile / 8 passive.
 
+## Minecraft GUI styling pass ✅
+Reworked all menus/HUD to match classic Minecraft Java Edition (presentation only — interaction logic untouched):
+- **Pixel font** (VT323 via Google Fonts, monospace fallback) across every UI surface.
+- **Beveled gray panels + recessed slots** (light top-left / dark bottom-right borders) for the inventory, crafting table, furnace, and creative palette.
+- **Hotbar**: gray panel bar, recessed slots, the white selection box on the active slot, item counts, durability bars; removed the non-Minecraft slot numbers.
+- **Survival HUD**: replaced emoji with procedural pixel sprites (`hudSprites.ts`, canvas-generated like the block atlas) — red hearts on the left, brown drumsticks on the right, blue air bubbles above the hunger bar. Fixed an air-row alignment bug (`row-reverse`+`flex-end` packed left); bubbles now sit over the hunger bar (verified: air/hunger right edges both at x=683).
+- **Survival inventory** now includes the Minecraft player-preview box (procedural blocky avatar) left of the 2×2 grid; hidden in the 3×3 crafting-table view. Title reads "Crafting".
+- **Furnace UI**: input-over-fuel column with a clip-path flame that burns down + a right-pointing progress arrow that fills, then the output slot.
+- **Crafting arrow** drawn as a gray pixel arrow; **menu/death buttons** restyled to Minecraft's gray beveled buttons with the bluish/yellow hover.
+- **Verify (visual + scripted):** screenshots of the survival inventory, 3×3 crafting table, and furnace all match the MC layout; VT323 loaded; zero console warnings.
+
 ## WASD direction fix ✅
 - **Movement was mirrored on X as you turned.** The yaw-rotation of the WASD input vector had both cross-terms negated (`vx = mx·cos − mz·sin`, `vz = mz·cos + mx·sin`). Correct rotation for camera forward `(−sin,−cos)` / right `(cos,−sin)` with W=`mz−1`, D=`mx+1` is `vx = mx·cos + mz·sin`, `vz = mz·cos − mx·sin`. It happened to be correct only near yaw≈0 (sin≈0), which is why it felt fine facing one way and drifted wrong after looking around.
 - **Verify (scripted):** W·lookDir = 1.0, S·lookDir = −1.0, D·cameraRight = 1.0 at yaw 0/45/90/180/270 — exact at every angle.

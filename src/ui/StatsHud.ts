@@ -1,9 +1,12 @@
 import { Player } from '../player/Player';
+import { buildHudSprites } from './hudSprites';
 
 /**
- * Survival HUD above the hotbar: hearts, drumsticks, and air bubbles while
- * underwater. Hidden entirely in creative mode. Also owns the red damage
- * flash and the death screen.
+ * Survival HUD above the hotbar (Minecraft layout): a row of hearts on the
+ * left and hunger drumsticks on the right, with air bubbles above the hunger
+ * row while underwater. Icons are procedural pixel sprites exposed to CSS as
+ * custom properties. Hidden in creative mode. Also owns the damage flash and
+ * the death screen.
  */
 export class StatsHud {
   private readonly root: HTMLElement;
@@ -16,6 +19,19 @@ export class StatsHud {
   private flashTimer = 0;
 
   constructor(container: HTMLElement, onRespawn: () => void) {
+    // Publish the generated sprites as CSS variables so styling stays in CSS.
+    const s = buildHudSprites();
+    const root = document.documentElement.style;
+    root.setProperty('--spr-heart-full', `url(${s.heartFull})`);
+    root.setProperty('--spr-heart-half', `url(${s.heartHalf})`);
+    root.setProperty('--spr-heart-empty', `url(${s.heartEmpty})`);
+    root.setProperty('--spr-hunger-full', `url(${s.hungerFull})`);
+    root.setProperty('--spr-hunger-half', `url(${s.hungerHalf})`);
+    root.setProperty('--spr-hunger-empty', `url(${s.hungerEmpty})`);
+    root.setProperty('--spr-bubble-full', `url(${s.bubbleFull})`);
+    root.setProperty('--spr-bubble-half', `url(${s.bubbleHalf})`);
+    root.setProperty('--spr-steve', `url(${s.steve})`);
+
     this.root = document.createElement('div');
     this.root.id = 'stats-hud';
 
@@ -28,26 +44,26 @@ export class StatsHud {
 
     for (let i = 0; i < 10; i++) {
       const h = document.createElement('span');
-      h.textContent = '❤'; // ❤
+      h.className = 'icon heart';
       heartRow.appendChild(h);
       this.heartEls.push(h);
 
       const f = document.createElement('span');
-      f.textContent = '\u{1F357}'; // 🍗
+      f.className = 'icon food';
       foodRow.appendChild(f);
       this.foodEls.push(f);
 
       const a = document.createElement('span');
-      a.textContent = '●'; // ●
+      a.className = 'icon air';
       this.airRow.appendChild(a);
       this.airEls.push(a);
     }
 
+    this.root.appendChild(this.airRow);
     const top = document.createElement('div');
     top.className = 'stat-top';
     top.appendChild(heartRow);
     top.appendChild(foodRow);
-    this.root.appendChild(this.airRow);
     this.root.appendChild(top);
     container.appendChild(this.root);
 
@@ -58,7 +74,7 @@ export class StatsHud {
     this.deathEl = document.createElement('div');
     this.deathEl.id = 'death-screen';
     this.deathEl.style.display = 'none';
-    this.deathEl.innerHTML = '<div class="death-panel"><h1>You died!</h1><button id="respawn-btn">Respawn</button></div>';
+    this.deathEl.innerHTML = '<div class="death-panel"><h1>You Died!</h1><button id="respawn-btn">Respawn</button></div>';
     container.appendChild(this.deathEl);
     this.deathEl.querySelector('#respawn-btn')!.addEventListener('click', onRespawn);
   }
@@ -84,11 +100,11 @@ export class StatsHud {
 
     for (let i = 0; i < 10; i++) {
       const hp = player.health - i * 2;
-      this.heartEls[i].className = hp >= 2 ? 'full' : hp >= 1 ? 'half' : 'empty';
+      this.heartEls[i].className = `icon heart ${hp >= 2 ? 'full' : hp >= 1 ? 'half' : 'empty'}`;
       const fd = player.hunger - i * 2;
-      this.foodEls[i].className = fd >= 2 ? 'full' : fd >= 1 ? 'half' : 'empty';
+      this.foodEls[i].className = `icon food ${fd >= 2 ? 'full' : fd >= 1 ? 'half' : 'empty'}`;
       const ar = player.air - i;
-      this.airEls[i].className = ar >= 1 ? 'full' : ar > 0 ? 'half' : 'empty';
+      this.airEls[i].className = `icon air ${ar >= 1 ? 'full' : ar > 0 ? 'half' : 'empty'}`;
     }
     this.airRow.style.display = player.air < Player.MAX_AIR ? 'flex' : 'none';
   }

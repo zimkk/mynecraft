@@ -36,6 +36,7 @@ export class InventoryScreen {
   private furnaceState: FurnaceState | null = null;
   private craftRowEl!: HTMLElement;
   private furnaceRowEl!: HTMLElement;
+  private playerPreviewEl!: HTMLElement;
   private smeltFillEl!: HTMLElement;
   private flameFillEl!: HTMLElement;
   private readonly root: HTMLElement;
@@ -66,9 +67,15 @@ export class InventoryScreen {
     this.titleEl.textContent = 'Inventory';
     panel.appendChild(this.titleEl);
 
-    // Crafting area: 3×3 grid + arrow + result.
+    // Crafting area: [player preview] + 3×3 grid + arrow + result. The preview
+    // box only shows in the personal-inventory (2×2) mode, like Minecraft.
     const craftRow = document.createElement('div');
     craftRow.className = 'craft-row';
+    const preview = document.createElement('div');
+    preview.className = 'player-preview';
+    preview.innerHTML = '<div class="player-doll"></div>';
+    craftRow.appendChild(preview);
+    this.playerPreviewEl = preview;
     const craftGrid = document.createElement('div');
     craftGrid.className = 'craft-grid';
     for (let i = 0; i < 9; i++) {
@@ -349,9 +356,10 @@ export class InventoryScreen {
   openScreen(mode: 2 | 3 = 2): void {
     this.open = true;
     this.furnaceState = null;
-    this.titleEl.textContent = mode === 3 ? 'Crafting Table' : 'Inventory';
+    this.titleEl.textContent = 'Crafting';
     this.craftRowEl.style.display = 'flex';
     this.furnaceRowEl.style.display = 'none';
+    this.playerPreviewEl.style.display = mode === 2 ? 'flex' : 'none';
     // Hide the outer craft cells in 2×2 mode (they are empty by invariant).
     for (let i = 0; i < 9; i++) {
       const x = i % 3;

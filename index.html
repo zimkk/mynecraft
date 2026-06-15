@@ -4,165 +4,209 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VoxelCraft</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
     <style>
+      :root {
+        /* Classic Minecraft GUI palette */
+        --mc-font: 'VT323', 'Consolas', monospace;
+        --mc-panel: #c6c6c6;       /* raised gray panel */
+        --mc-slot: #8b8b8b;        /* recessed slot fill */
+        --mc-slot-dark: #373737;
+        --mc-text: #404040;        /* dark label text on gray panels */
+      }
       html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; background: #000; }
       #app { width: 100%; height: 100%; }
       canvas { display: block; }
-      .hud { position: fixed; font-family: 'Consolas', monospace; color: #fff; user-select: none; pointer-events: none; }
-      #fps { top: 8px; left: 8px; font-size: 14px; text-shadow: 1px 1px 0 #000; }
+
+      .hud { position: fixed; font-family: var(--mc-font); color: #fff; user-select: none; pointer-events: none; }
+      #fps { top: 6px; left: 6px; font-size: 18px; text-shadow: 2px 2px 0 #000; }
       #debug {
-        top: 32px; left: 8px; font-size: 13px; line-height: 1.45;
-        background: rgba(0,0,0,0.45); padding: 8px 10px; border-radius: 4px;
+        top: 30px; left: 6px; font-size: 17px; line-height: 1.35;
+        background: rgba(0,0,0,0.55); padding: 6px 8px;
       }
+
+      /* ---- Crosshair ---- */
       #crosshair {
         position: fixed; top: 50%; left: 50%; width: 18px; height: 18px;
         transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: difference;
       }
-      #crosshair::before, #crosshair::after {
-        content: ''; position: absolute; background: #fff;
-      }
+      #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; }
       #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
       #crosshair::after { top: 8px; left: 0; width: 18px; height: 2px; }
-      #hotbar {
-        position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
-        display: flex; gap: 4px; padding: 4px; background: rgba(0,0,0,0.35);
-        border-radius: 6px; user-select: none;
+
+      /* ---- Shared slot (recessed) ---- */
+      .slot {
+        position: relative; box-sizing: border-box; background: var(--mc-slot);
+        border: 2px solid; border-color: var(--mc-slot-dark) #ffffff #ffffff var(--mc-slot-dark);
+        display: flex; align-items: center; justify-content: center; image-rendering: pixelated;
       }
-      #hotbar .slot {
-        position: relative; width: 48px; height: 48px; border: 2px solid #555;
-        border-radius: 4px; background: rgba(20,20,20,0.6);
-        display: flex; align-items: center; justify-content: center;
-      }
-      #hotbar .slot.active { border-color: #fff; background: rgba(60,60,60,0.7); }
-      #hotbar .slot img { width: 36px; height: 36px; image-rendering: pixelated; }
-      #hotbar .slot .num {
-        position: absolute; top: 1px; left: 3px; font-size: 10px;
-        font-family: 'Consolas', monospace; color: #ccc; text-shadow: 1px 1px 0 #000;
-      }
+      .slot img { width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; }
+      .slot .num { display: none; }  /* Minecraft hotbar shows no slot numbers */
       .slot .count {
-        position: absolute; bottom: 1px; right: 3px; font-size: 13px; font-weight: bold;
-        font-family: 'Consolas', monospace; color: #fff; text-shadow: 1px 1px 0 #000;
-        pointer-events: none;
+        position: absolute; right: 0; bottom: -3px; font-family: var(--mc-font);
+        font-size: 19px; line-height: 1; color: #fff; text-shadow: 2px 2px 0 #3f3f3f; pointer-events: none;
       }
-      .slot .dura {
-        position: absolute; bottom: 3px; left: 4px; right: 4px; height: 3px;
-        background: rgba(0,0,0,0.7); border-radius: 1px; pointer-events: none;
+      .slot .dura { position: absolute; left: 3px; right: 3px; bottom: 2px; height: 3px; background: #000; }
+      .slot .dura div { height: 100%; }
+
+      /* ---- Hotbar ---- */
+      #hotbar {
+        position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%);
+        display: flex; gap: 2px; padding: 3px; background: var(--mc-panel);
+        border: 3px solid; border-color: #fff #555 #555 #fff;
       }
-      .slot .dura div { height: 100%; border-radius: 1px; }
+      #hotbar .slot { width: 42px; height: 42px; }
+      #hotbar .slot.active {
+        box-shadow: 0 0 0 2px #f4f4f4, 0 0 0 4px #2a2a2a; z-index: 2;
+      }
+
+      /* ---- Survival stats HUD (hearts left, hunger right) ---- */
+      #stats-hud {
+        position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%);
+        width: 426px; pointer-events: none; user-select: none;
+      }
+      .stat-top { display: flex; justify-content: space-between; }
+      .stat-row { display: flex; gap: 1px; height: 18px; }
+      .stat-row.hearts { justify-content: flex-start; }
+      .stat-row.food { justify-content: flex-end; flex-direction: row-reverse; }
+      /* Air bubbles sit above the hunger bar (right side) and pop from the right. */
+      .stat-row.air { width: 100%; box-sizing: border-box; justify-content: flex-end; margin-bottom: 2px; }
+      .icon { width: 18px; height: 18px; background-size: 100% 100%; background-repeat: no-repeat; image-rendering: pixelated; }
+      .heart.full { background-image: var(--spr-heart-full); }
+      .heart.half { background-image: var(--spr-heart-half); }
+      .heart.empty { background-image: var(--spr-heart-empty); }
+      .food.full { background-image: var(--spr-hunger-full); }
+      .food.half { background-image: var(--spr-hunger-half); }
+      .food.empty { background-image: var(--spr-hunger-empty); }
+      .air.full { background-image: var(--spr-bubble-full); }
+      .air.half { background-image: var(--spr-bubble-half); }
+      .air.empty { background-image: none; }
+
+      /* ---- Inventory / crafting / furnace panel ---- */
       #inv-screen {
         position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-        background: rgba(0,0,0,0.5); z-index: 9; font-family: 'Consolas', monospace;
+        background: rgba(0,0,0,0.5); z-index: 9; font-family: var(--mc-font);
       }
-      #inv-screen .inv-panel {
-        background: rgba(30,32,40,0.96); border: 1px solid #555; border-radius: 8px;
-        padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+      .inv-panel {
+        background: var(--mc-panel); border: 4px solid; border-color: #fff #555 #555 #fff;
+        padding: 14px; display: flex; flex-direction: column; gap: 10px;
       }
-      #inv-screen .inv-title { color: #ddd; font-size: 15px; }
-      .craft-row { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
-      .craft-grid { display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; }
-      .craft-arrow { color: #aaa; font-size: 26px; }
-      #inv-screen .result-slot { border-color: #7a7a3a; width: 52px; height: 52px; }
-      .furnace-row { gap: 18px; }
-      .furnace-io { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-      .furnace-flame {
-        width: 14px; height: 18px; background: #2a2a30; border-radius: 2px;
-        display: flex; flex-direction: column-reverse;
+      .inv-title { color: var(--mc-text); font-size: 22px; line-height: 1; }
+
+      .craft-row { display: flex; align-items: center; gap: 12px; }
+      .craft-grid { display: grid; grid-template-columns: repeat(3, 40px); grid-auto-rows: 40px; gap: 2px; }
+      #inv-screen .result-slot { width: 48px; height: 48px; }
+      #inv-screen .result-slot img { width: 36px; height: 36px; }
+
+      /* crafting arrow drawn with shapes (gray, pixel look) */
+      .craft-arrow { font-size: 0; position: relative; width: 28px; height: 16px; flex: 0 0 auto; }
+      .craft-arrow::before { content: ''; position: absolute; left: 0; top: 4px; width: 16px; height: 8px; background: var(--mc-slot); }
+      .craft-arrow::after {
+        content: ''; position: absolute; left: 12px; top: -1px; width: 0; height: 0;
+        border-left: 16px solid var(--mc-slot); border-top: 9px solid transparent; border-bottom: 9px solid transparent;
       }
-      .furnace-flame div { width: 100%; background: linear-gradient(#ffd84a, #e8642a); border-radius: 2px; }
-      .smelt-bar { width: 70px; height: 10px; background: #2a2a30; border-radius: 3px; }
-      .smelt-bar div { height: 100%; background: #d8d8d8; border-radius: 3px; width: 0; }
-      .inv-grid { display: grid; grid-template-columns: repeat(9, 44px); gap: 4px; }
-      .inv-hotbar-row { margin-top: 6px; }
-      #inv-screen .slot, .inv-palette .slot {
-        position: relative; width: 44px; height: 44px; border: 2px solid #555;
-        border-radius: 4px; background: rgba(18,18,22,0.8); cursor: pointer;
+
+      /* survival player-preview box */
+      .player-preview {
+        width: 58px; height: 80px; background: var(--mc-slot);
+        border: 2px solid; border-color: var(--mc-slot-dark) #fff #fff var(--mc-slot-dark);
         display: flex; align-items: center; justify-content: center;
       }
-      #inv-screen .slot:hover { border-color: #999; }
-      #inv-screen .slot img, .inv-palette .slot img { width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; }
+      .player-doll { width: 32px; height: 64px; background-image: var(--spr-steve); background-size: 100% 100%; image-rendering: pixelated; }
+
+      /* furnace flame + progress arrow */
+      .furnace-row { gap: 14px; }
+      .furnace-io { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+      .furnace-flame {
+        width: 22px; height: 22px; position: relative; overflow: hidden;
+        clip-path: polygon(50% 0, 62% 22%, 75% 42%, 72% 70%, 88% 100%, 12% 100%, 28% 70%, 25% 42%, 38% 22%);
+      }
+      .furnace-flame::before { content: ''; position: absolute; inset: 0; background: #2c2c2c; }
+      .furnace-flame > div { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: linear-gradient(#ffe07a, #e8642a); }
+      .smelt-bar {
+        width: 46px; height: 24px; position: relative; overflow: hidden;
+        clip-path: polygon(0 32%, 58% 32%, 58% 12%, 100% 50%, 58% 88%, 58% 68%, 0 68%);
+      }
+      .smelt-bar::before { content: ''; position: absolute; inset: 0; background: #5a5a5a; }
+      .smelt-bar > div { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #dadada; }
+
+      /* main inventory + hotbar-row grids */
+      .inv-grid { display: grid; grid-template-columns: repeat(9, 40px); gap: 2px; }
+      .inv-hotbar-row { margin-top: 8px; }
+      #inv-screen .slot, .inv-palette .slot { width: 40px; height: 40px; cursor: pointer; }
+      #inv-screen .slot img, .inv-palette .slot img { width: 30px; height: 30px; }
+      #inv-screen .slot:hover::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,0.35); pointer-events: none; }
+
+      /* creative palette */
       .inv-tab {
-        font-family: inherit; font-size: 12px; padding: 5px; cursor: pointer;
-        background: #3a3f4b; color: #fff; border: 1px solid #555; border-radius: 4px;
+        font-family: var(--mc-font); font-size: 18px; color: #fff; text-shadow: 2px 2px 0 #1f1f1f;
+        background: #6b6b6b; border: 2px solid; border-color: #fff #000 #000 #fff; padding: 4px 6px; cursor: pointer;
       }
-      .inv-palette {
-        display: grid; grid-template-columns: repeat(9, 44px); gap: 4px;
-        max-height: 150px; overflow-y: auto;
+      .inv-tab:hover { background: #73839a; color: #ffffa0; }
+      .inv-palette { display: grid; grid-template-columns: repeat(9, 40px); gap: 2px; max-height: 160px; overflow-y: auto; padding-right: 4px; }
+
+      /* dragged cursor stack */
+      #inv-cursor { position: fixed; z-index: 20; pointer-events: none; width: 32px; height: 32px; }
+      #inv-cursor img { width: 32px; height: 32px; image-rendering: pixelated; filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.5)); }
+      #inv-cursor .count {
+        position: absolute; right: -2px; bottom: -4px; font-family: var(--mc-font);
+        font-size: 19px; color: #fff; text-shadow: 2px 2px 0 #3f3f3f;
       }
-      #inv-cursor {
-        position: fixed; z-index: 20; pointer-events: none; width: 36px; height: 36px;
+
+      /* selected block name pop */
+      #block-name {
+        position: fixed; bottom: 108px; left: 50%; transform: translateX(-50%);
+        font-family: var(--mc-font); font-size: 22px; color: #fff; text-shadow: 2px 2px 0 #000;
+        opacity: 0; transition: opacity 0.4s; pointer-events: none; user-select: none;
       }
-      #inv-cursor img { width: 32px; height: 32px; image-rendering: pixelated; filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.6)); }
-      #stats-hud {
-        position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
-        pointer-events: none; user-select: none;
-      }
-      .stat-top { display: flex; gap: 60px; justify-content: center; }
-      .stat-row { display: flex; gap: 1px; font-size: 15px; }
-      .stat-row.air { justify-content: flex-end; margin-bottom: 2px; color: #7db8e8; }
-      .stat-row span { text-shadow: 1px 1px 1px #000; }
-      .hearts .full { color: #e83a3a; }
-      .hearts .half { color: #e83a3a; opacity: 0.55; }
-      .hearts .empty { color: #3a3a3a; }
-      .food .full { filter: none; }
-      .food .half { filter: grayscale(0.5) brightness(0.85); }
-      .food .empty { filter: grayscale(1) brightness(0.4); }
-      .air .half { opacity: 0.5; }
-      .air .empty { visibility: hidden; }
+
+      /* ---- Damage flash + death screen ---- */
       #damage-flash {
         position: fixed; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, #c00 130%);
         opacity: 0; pointer-events: none; z-index: 8; transition: opacity 0.1s;
       }
       #death-screen {
         position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-        background: rgba(120, 0, 0, 0.45); z-index: 11; font-family: 'Consolas', monospace;
+        background: rgba(120, 0, 0, 0.5); z-index: 11; font-family: var(--mc-font);
       }
-      .death-panel { text-align: center; color: #fff; }
-      .death-panel h1 { font-size: 36px; text-shadow: 2px 2px 0 #000; }
-      .death-panel button {
-        font-family: inherit; font-size: 16px; padding: 10px 28px; cursor: pointer;
-        background: #3a3f4b; color: #fff; border: 1px solid #777; border-radius: 5px;
-      }
-      #inv-cursor .count {
-        position: absolute; bottom: -2px; right: -2px; font-size: 13px; font-weight: bold;
-        font-family: 'Consolas', monospace; color: #fff; text-shadow: 1px 1px 0 #000;
-      }
-      #block-name {
-        position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%);
-        font-family: 'Consolas', monospace; font-size: 15px; color: #fff;
-        text-shadow: 1px 1px 0 #000; opacity: 0; transition: opacity 0.4s;
-        pointer-events: none; user-select: none;
-      }
+      .death-panel { text-align: center; color: #fff; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+      .death-panel h1 { margin: 0; font-size: 46px; color: #ff5a5a; text-shadow: 3px 3px 0 #2a0000; }
+
+      /* ---- Pause / main menu ---- */
       #menu {
         position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-        background: rgba(0, 0, 0, 0.55); font-family: 'Consolas', monospace; z-index: 10;
+        background: rgba(0, 0, 0, 0.6); font-family: var(--mc-font); z-index: 10;
       }
       #menu .panel {
-        background: rgba(24, 26, 32, 0.95); border: 1px solid #444; border-radius: 10px;
-        padding: 22px 28px; width: 340px; color: #eee; display: flex; flex-direction: column; gap: 12px;
+        background: rgba(22, 20, 18, 0.92); border: 4px solid; border-color: #6b6256 #2a2620 #2a2620 #6b6256;
+        padding: 20px 24px; width: 366px; display: flex; flex-direction: column; gap: 10px;
       }
-      #menu h1 { margin: 0 0 4px; font-size: 26px; text-align: center; letter-spacing: 2px; }
-      #menu button {
-        font-family: inherit; font-size: 14px; padding: 8px 10px; cursor: pointer;
-        background: #3a3f4b; color: #fff; border: 1px solid #555; border-radius: 5px;
+      #menu h1 { margin: 0 0 6px; font-size: 42px; color: #fff; text-shadow: 3px 3px 0 #3a3a3a; text-align: center; letter-spacing: 1px; }
+
+      #menu button, .death-panel button {
+        font-family: var(--mc-font); font-size: 20px; color: #e8e8e8; text-shadow: 2px 2px 0 #1f1f1f;
+        background: #6b6b6b; border: 2px solid; border-color: #fff #000 #000 #fff; padding: 6px 10px; cursor: pointer;
       }
-      #menu button:hover { background: #4a5160; }
-      #menu button.danger { background: #5a2c2c; border-color: #804040; }
-      #menu button.danger:hover { background: #74403a; }
-      #menu .row { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
-      #menu .row input[type=range] { width: 100%; }
-      #menu .seed-row { flex-direction: row; }
+      #menu button:hover, .death-panel button:hover { background: #73839a; color: #ffffa0; }
+      #menu button.danger { background: #8a4b3a; }
+      #menu button.danger:hover { background: #a05a45; color: #ffffa0; }
+
+      #menu .row { display: flex; flex-direction: column; gap: 4px; font-size: 18px; color: #e0e0e0; text-shadow: 1px 1px 0 #000; }
+      #menu .row input[type=range] { width: 100%; accent-color: #6b8b3a; }
+      #menu .seed-row { flex-direction: row; align-items: center; gap: 6px; }
       #menu .seed-row input {
-        flex: 1; font-family: inherit; font-size: 13px; padding: 7px 8px;
-        background: #1c1e24; color: #eee; border: 1px solid #555; border-radius: 5px;
-        min-width: 0;
+        flex: 1; min-width: 0; font-family: var(--mc-font); font-size: 18px; padding: 5px 6px;
+        background: #2a2a2a; color: #fff; border: 2px solid; border-color: #000 #555 #555 #000;
       }
       #menu .seed-row select {
-        font-family: inherit; font-size: 13px; padding: 7px 4px;
-        background: #1c1e24; color: #eee; border: 1px solid #555; border-radius: 5px;
+        font-family: var(--mc-font); font-size: 18px; padding: 5px; background: #2a2a2a; color: #fff;
+        border: 2px solid; border-color: #000 #555 #555 #000;
       }
       #menu .btn-row { flex-direction: row; }
       #menu .btn-row button { flex: 1; }
-      #menu .controls { font-size: 12px; color: #aaa; line-height: 1.7; text-align: center; }
+      #menu .controls { font-size: 16px; color: #bdbdbd; line-height: 1.5; text-align: center; text-shadow: 1px 1px 0 #000; }
     </style>
   </head>
   <body>
