@@ -3,6 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "license": "MIT",
+  "author": "Hassan Nazir",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zimkk/mynecraft.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

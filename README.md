@@ -1,6 +1,12 @@
 # Mynecraft — by Hassan Nazir
 
-A Minecraft-style voxel game built from scratch in **TypeScript + Three.js + Vite**, running entirely in the browser. Procedural terrain with trees, ores and caves; survival gameplay with crafting, tools, smelting, hunger, mobs and combat; flood-fill lighting with torches and a day/night cycle; full save/load. Everything — chunk meshing, AABB physics, voxel raycasting, lighting, AI — is hand-written; the only runtime dependencies are `three` and `simplex-noise`.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+A Minecraft-style voxel game built from scratch in **TypeScript + Three.js + Vite**, running entirely in the browser. Procedural terrain with trees, ores, caves and lava; survival gameplay with crafting, tools, smelting, hunger, mobs and combat; redstone, chests, brewing, enchanting and villager trading; Nether and End dimensions with portals and a dragon fight; flood-fill lighting with torches/glowstone/lava and a day/night cycle with a sun/moon/star sky; full save/load. Everything — chunk meshing, AABB physics, voxel raycasting, lighting, AI — is hand-written; the only runtime dependencies are `three` and `simplex-noise`.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Open source, free to use, modify, and distribute.
 
 ## Run it
 
@@ -38,24 +44,32 @@ Punch trees → craft planks, sticks and a crafting table → wooden tools → m
 src/
   core/        Game loop (fixed-timestep update + rAF render), Input (Pointer Lock),
                Sound (procedural WebAudio — no audio assets)
-  world/       Block registry (hardness/tools/drops), Chunk (16×128×16 Uint8Array),
-               ChunkManager (world block access), ChunkStreamer (worker-based generation,
-               load/unload ring), Furnace (block-entity smelting)
-  terrain/     TerrainGenerator (octave simplex heightmap, caves, ore veins,
-               cross-chunk-safe trees), terrainWorker (transferable block buffers)
+  world/       Block registry (hardness/tools/drops/unbreakable), Chunk (16×128×16
+               Uint8Array), ChunkManager (world block access), ChunkStreamer
+               (worker-based generation, load/unload ring, dimension switching),
+               Furnace, Chest, Redstone (wires/levers/buttons/lamps/doors), Portal,
+               Brewing (potion stands)
+  terrain/     TerrainGenerator (octave simplex heightmap, caves, ore veins, lava
+               pools, bedrock floor, cross-chunk-safe trees/villages/ruins),
+               NetherTerrainGenerator, EndTerrainGenerator, terrainWorker
+               (transferable block buffers, dimension-aware)
   rendering/   ChunkMesher (face culling incl. chunk borders, per-face light sampling),
                ChunkMaterial (custom shader: baked light × dayFactor + fog),
-               Lighting (per-chunk skylight + torch BFS), TextureAtlas (procedural
-               16×16 tiles generated at runtime), ChunkRenderer, DayNightCycle, Particles
-  player/      Player (AABB physics, survival stats), Raycast (DDA voxel traversal),
-               BlockInteraction (timed mining, crack overlay, placement)
+               Lighting (per-chunk skylight + block-light BFS from torches/lava/
+               glowstone/portals), TextureAtlas (procedural 16×16 tiles generated
+               at runtime), ChunkRenderer, DayNightCycle (per-dimension sky/fog),
+               Sky (sun/moon/star billboards), Particles
+  player/      Player (AABB physics, survival stats, swimming, void damage),
+               Raycast (DDA voxel traversal), BlockInteraction (timed mining,
+               crack overlay, placement, unbreakable-block guard)
   entities/    ItemEntity + EntityManager (drops/pickup), Mob + MobManager
-               (AI, spawning rules, combat)
-  items/       ItemRegistry (blocks/tools/materials/food), Inventory (stacking slots)
+               (AI, spawning rules, combat, head tracking), Trading (villager offers)
+  items/       ItemRegistry (blocks/tools/materials/food), Inventory (stacking slots),
+               Enchanting (table logic, XP, effect multipliers)
   crafting/    Recipes (shaped + shapeless matching)
   ui/          Hotbar, InventoryScreen (cursor-stack + craft grids + furnace UI),
-               StatsHud (hearts/hunger/air, death screen), DebugOverlay, Menu
-  save/        SaveManager (versioned format v4 with migrations, autosave, export/import)
+               TradeScreen, StatsHud (hearts/hunger/air, death screen), DebugOverlay, Menu
+  save/        SaveManager (versioned format v8 with migrations, autosave, export/import)
 ```
 
 Key design decisions:
