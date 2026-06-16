@@ -4,8 +4,17 @@ import { Block } from '../world/BlockRegistry';
 
 export const WATER_LEVEL = 32;
 
+/** Shared shape for anything that can supply chunks/village lookups to the
+ *  streamer and mob system, whether overworld or Nether. */
+export interface IWorldGenerator {
+  readonly seed: string;
+  readonly kind: 'overworld' | 'nether' | 'end';
+  generateChunk(cx: number, cz: number): Chunk;
+  nearestVillage(wx: number, wz: number, radius: number): VillageSpec | null;
+}
+
 /** Deterministic PRNG (mulberry32) used to seed the simplex noise. */
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -26,7 +35,7 @@ export function hashSeed(seed: string): number {
 }
 
 /** Mix integers into one 32-bit hash (for per-cell/per-chunk RNG streams). */
-function hashCoords(a: number, b: number, c: number, d: number): number {
+export function hashCoords(a: number, b: number, c: number, d: number): number {
   let h = (a | 0) * 0x85ebca6b;
   h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
   h ^= (b | 0) * 0x27d4eb2f;
@@ -44,6 +53,30 @@ interface TreeSpec {
   trunkHeight: number;
 }
 
+interface HouseSpec {
+  /** Min-corner world coords. */
+  x: number;
+  z: number;
+  doorDir: 0 | 1 | 2 | 3;
+}
+
+export interface VillageSpec {
+  x: number;
+  z: number;
+  groundY: number;
+  houses: HouseSpec[];
+}
+
+/** A small ruined cobblestone tower with a single loot chest at its center. */
+export interface RuinSpec {
+  x: number;
+  z: number;
+  groundY: number;
+  chestX: number;
+  chestY: number;
+  chestZ: number;
+}
+
 interface OreConfig {
   block: Block;
   attemptsPerChunk: number;
@@ -57,12 +90,27 @@ const ORES: OreConfig[] = [
   { block: Block.IronOre, attemptsPerChunk: 10, minY: 5, maxY: 40, maxVein: 7 },
   { block: Block.GoldOre, attemptsPerChunk: 4, minY: 5, maxY: 22, maxVein: 5 },
   { block: Block.DiamondOre, attemptsPerChunk: 2, minY: 5, maxY: 14, maxVein: 5 },
+  { block: Block.LapisOre, attemptsPerChunk: 3, minY: 5, maxY: 24, maxVein: 5 },
+  { block: Block.Obsidian, attemptsPerChunk: 1, minY: 5, maxY: 10, maxVein: 3 },
 ];
 
 /** One tree candidate per TREE_CELL×TREE_CELL world cell keeps trees spaced. */
 const TREE_CELL = 8;
 /** How far outside the chunk we look for tree anchors whose canopy reaches in. */
 const TREE_MARGIN = 3;
+
+/** One village candidate per VILLAGE_CELL×VILLAGE_CELL world cell. */
+const VILLAGE_CELL = 96;
+/** How far outside the chunk we look for village anchors whose buildings reach in. */
+const VILLAGE_MARGIN = 18;
+/** Roughly 1 in 5 cells actually rolls a village. */
+const VILLAGE_CHANCE = 0.2;
+
+/** One ruin candidate per RUIN_CELL×RUIN_CELL world cell — rarer than villages. */
+const RUIN_CELL = 160;
+const RUIN_MARGIN = 6;
+/** Roughly 1 in 7 cells rolls a ruin. */
+const RUIN_CHANCE = 0.14;
 
 /**
  * Heightmap terrain from layered (octave) simplex noise, decorated with
@@ -76,12 +124,15 @@ export class TerrainGenerator {
   private readonly caveNoise: NoiseFunction3D;
   private readonly seedNum: number;
   readonly seed: string;
+  readonly kind = 'overworld' as const;
 
   private static readonly BASE_HEIGHT = 34;
   private static readonly AMPLITUDE = 22;
   private static readonly FREQUENCY = 1 / 160;
   private static readonly OCTAVES = 4;
-  private static readonly CAVE_THRESHOLD = 0.68;
+  // Lowered from 0.68 — the old value produced sparse, barely-connected
+  // slivers; this opens up noticeably larger, more explorable caverns.
+  private static readonly CAVE_THRESHOLD = 0.6;
 
   constructor(seed: string) {
     this.seed = seed;
@@ -121,6 +172,73 @@ export class TerrainGenerator {
     return { x: wx, z: wz, groundY, trunkHeight: 4 + Math.floor(rng() * 3) };
   }
 
+  /** Deterministic village anchor for a given village cell, if one rolls there. */
+  villageAt(cellX: number, cellZ: number): VillageSpec | null {
+    const rng = mulberry32(hashCoords(this.seedNum, cellX, cellZ, 0xb111a9e));
+    const ox = 24 + Math.floor(rng() * (VILLAGE_CELL - 48));
+    const oz = 24 + Math.floor(rng() * (VILLAGE_CELL - 48));
+    if (rng() > VILLAGE_CHANCE) return null;
+    const wx = cellX * VILLAGE_CELL + ox;
+    const wz = cellZ * VILLAGE_CELL + oz;
+    const groundY = this.heightAt(wx, wz);
+    if (groundY <= WATER_LEVEL + 2) return null; // no villages on beaches/underwater
+    const offsets: Array<[number, number]> = [[-11, -9], [11, -9], [0, 11]];
+    const houses: HouseSpec[] = offsets.map(([dx, dz]) => ({
+      x: wx + dx,
+      z: wz + dz,
+      doorDir: Math.floor(rng() * 4) as 0 | 1 | 2 | 3,
+    }));
+    return { x: wx, z: wz, groundY, houses };
+  }
+
+  /** Nearest village center to (wx, wz) within `radius` blocks, if any. */
+  nearestVillage(wx: number, wz: number, radius: number): VillageSpec | null {
+    const cellSpan = Math.ceil(radius / VILLAGE_CELL) + 1;
+    const cellX0 = Math.floor(wx / VILLAGE_CELL);
+    const cellZ0 = Math.floor(wz / VILLAGE_CELL);
+    let best: VillageSpec | null = null;
+    let bestDist = radius;
+    for (let dz = -cellSpan; dz <= cellSpan; dz++) {
+      for (let dx = -cellSpan; dx <= cellSpan; dx++) {
+        const village = this.villageAt(cellX0 + dx, cellZ0 + dz);
+        if (!village) continue;
+        const dist = Math.hypot(village.x - wx, village.z - wz);
+        if (dist <= bestDist) {
+          best = village;
+          bestDist = dist;
+        }
+      }
+    }
+    return best;
+  }
+
+  /** Deterministic ruin anchor for a given ruin cell, if one rolls there. */
+  ruinAt(cellX: number, cellZ: number): RuinSpec | null {
+    const rng = mulberry32(hashCoords(this.seedNum, cellX, cellZ, 0x5217));
+    const ox = 16 + Math.floor(rng() * (RUIN_CELL - 32));
+    const oz = 16 + Math.floor(rng() * (RUIN_CELL - 32));
+    if (rng() > RUIN_CHANCE) return null;
+    const wx = cellX * RUIN_CELL + ox;
+    const wz = cellZ * RUIN_CELL + oz;
+    const groundY = this.heightAt(wx, wz);
+    if (groundY <= WATER_LEVEL + 2) return null; // no ruins on beaches/underwater
+    return { x: wx, z: wz, groundY, chestX: wx, chestY: groundY + 1, chestZ: wz };
+  }
+
+  /** True if (wx, wy, wz) is exactly a generated ruin's loot-chest position
+   *  (used by main.ts to roll loot the first time it's opened). */
+  isRuinChest(wx: number, wy: number, wz: number): boolean {
+    const cellX = Math.floor(wx / RUIN_CELL);
+    const cellZ = Math.floor(wz / RUIN_CELL);
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const ruin = this.ruinAt(cellX + dx, cellZ + dz);
+        if (ruin && ruin.chestX === wx && ruin.chestY === wy && ruin.chestZ === wz) return true;
+      }
+    }
+    return false;
+  }
+
   generateChunk(cx: number, cz: number): Chunk {
     const chunk = new Chunk(cx, cz);
     const baseX = cx * CHUNK_SIZE;
@@ -149,6 +267,15 @@ export class TerrainGenerator {
           chunk.blocks[Chunk.index(x, y, z)] = Block.Water;
         }
 
+        // Bedrock floor: an unbreakable cap at the bottom of the world so
+        // digging straight down can never expose the void underneath (the
+        // bug where the ground "just ends" and you fall out of the world).
+        // A jagged 1-3 layer transition, like vanilla, instead of a flat slab.
+        const bedrockRng = mulberry32(hashCoords(this.seedNum, wx, wz, 0xb3d2));
+        chunk.blocks[Chunk.index(x, 0, z)] = Block.Bedrock;
+        if (bedrockRng() < 0.8) chunk.blocks[Chunk.index(x, 1, z)] = Block.Bedrock;
+        if (bedrockRng() < 0.4) chunk.blocks[Chunk.index(x, 2, z)] = Block.Bedrock;
+
         // Caves: carve 3D-noise tunnels through the stone layer, keeping a
         // 4-block roof under the surface and never under water columns
         // (avoids draining oceans into caves).
@@ -158,6 +285,24 @@ export class TerrainGenerator {
               chunk.blocks[Chunk.index(x, y, z)] = Block.Air;
             }
           }
+        }
+      }
+    }
+
+    // --- Lava pools: deep cave floors occasionally fill with lava instead of
+    // staying open air, like vanilla's underground lava lakes. Only at low Y
+    // (below the typical cave band) and only where the floor is solid, so it
+    // reads as a pool rather than lava floating in mid-air.
+    const lavaRng = mulberry32(hashCoords(this.seedNum, cx, cz, 0x1a4a));
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        for (let y = 5; y <= 11; y++) {
+          const idx = Chunk.index(x, y, z);
+          if (chunk.blocks[idx] !== Block.Air) continue;
+          const belowIdx = Chunk.index(x, y - 1, z);
+          const below = chunk.blocks[belowIdx];
+          if (below !== Block.Stone && below !== Block.Bedrock) continue;
+          if (lavaRng() < 0.025) chunk.blocks[idx] = Block.Lava;
         }
       }
     }
@@ -191,7 +336,133 @@ export class TerrainGenerator {
       }
     }
 
+    // --- Villages: check every cell whose buildings could reach this chunk ---
+    const cellMinX = Math.floor((baseX - VILLAGE_MARGIN) / VILLAGE_CELL);
+    const cellMaxX = Math.floor((baseX + CHUNK_SIZE + VILLAGE_MARGIN) / VILLAGE_CELL);
+    const cellMinZ = Math.floor((baseZ - VILLAGE_MARGIN) / VILLAGE_CELL);
+    const cellMaxZ = Math.floor((baseZ + CHUNK_SIZE + VILLAGE_MARGIN) / VILLAGE_CELL);
+    for (let cz = cellMinZ; cz <= cellMaxZ; cz++) {
+      for (let cx = cellMinX; cx <= cellMaxX; cx++) {
+        const village = this.villageAt(cx, cz);
+        if (village) this.writeVillage(chunk, baseX, baseZ, village);
+      }
+    }
+
+    // --- Ruins: check every cell whose footprint could reach this chunk ---
+    const rCellMinX = Math.floor((baseX - RUIN_MARGIN) / RUIN_CELL);
+    const rCellMaxX = Math.floor((baseX + CHUNK_SIZE + RUIN_MARGIN) / RUIN_CELL);
+    const rCellMinZ = Math.floor((baseZ - RUIN_MARGIN) / RUIN_CELL);
+    const rCellMaxZ = Math.floor((baseZ + CHUNK_SIZE + RUIN_MARGIN) / RUIN_CELL);
+    for (let cz = rCellMinZ; cz <= rCellMaxZ; cz++) {
+      for (let cx = rCellMinX; cx <= rCellMaxX; cx++) {
+        const ruin = this.ruinAt(cx, cz);
+        if (ruin) this.writeRuin(chunk, baseX, baseZ, ruin);
+      }
+    }
+
     return chunk;
+  }
+
+  /** Clear overhead clutter (trees, hills) and drop in each house. */
+  private writeVillage(chunk: Chunk, baseX: number, baseZ: number, village: VillageSpec): void {
+    const { groundY } = village;
+    for (let dz = -16; dz <= 16; dz++) {
+      for (let dx = -16; dx <= 16; dx++) {
+        const lx = village.x + dx - baseX;
+        const lz = village.z + dz - baseZ;
+        if (lx < 0 || lx >= CHUNK_SIZE || lz < 0 || lz >= CHUNK_SIZE) continue;
+        for (let y = groundY + 1; y <= Math.min(CHUNK_HEIGHT - 1, groundY + 9); y++) {
+          chunk.blocks[Chunk.index(lx, y, lz)] = Block.Air;
+        }
+      }
+    }
+    for (const house of village.houses) this.writeHouse(chunk, baseX, baseZ, house, groundY);
+  }
+
+  /** A simple 5×5×4 cobblestone/plank house with a door gap and two windows. */
+  private writeHouse(chunk: Chunk, baseX: number, baseZ: number, house: HouseSpec, groundY: number): void {
+    const W = 5, D = 5, H = 4;
+    const put = (wx: number, wy: number, wz: number, id: Block) => {
+      const lx = wx - baseX;
+      const lz = wz - baseZ;
+      if (lx < 0 || lx >= CHUNK_SIZE || lz < 0 || lz >= CHUNK_SIZE) return;
+      if (wy < 0 || wy >= CHUNK_HEIGHT) return;
+      chunk.blocks[Chunk.index(lx, wy, lz)] = id;
+    };
+    const doorX = house.doorDir === 0 || house.doorDir === 2 ? 2 : house.doorDir === 1 ? W - 1 : 0;
+    const doorZ = house.doorDir === 1 || house.doorDir === 3 ? 2 : house.doorDir === 0 ? 0 : D - 1;
+    const windowMid = 2; // W and D are both 5, so the middle index is 2.
+
+    // Floor.
+    for (let x = 0; x < W; x++) {
+      for (let z = 0; z < D; z++) put(house.x + x, groundY, house.z + z, Block.Plank);
+    }
+    // Walls (edges only — interior stays the cleared air from writeVillage).
+    for (let y = 1; y <= H; y++) {
+      for (let x = 0; x < W; x++) {
+        for (let z = 0; z < D; z++) {
+          const isEdge = x === 0 || x === W - 1 || z === 0 || z === D - 1;
+          if (!isEdge) continue;
+          const isDoor = x === doorX && z === doorZ && y <= 2;
+          if (isDoor) continue;
+          const isWindow = y === 2
+            && ((house.doorDir % 2 === 0 && (x === 0 || x === W - 1) && z === windowMid)
+              || (house.doorDir % 2 === 1 && (z === 0 || z === D - 1) && x === windowMid));
+          put(house.x + x, groundY + y, house.z + z, isWindow ? Block.Glass : y === 1 ? Block.Cobblestone : Block.Plank);
+        }
+      }
+    }
+    // Flat overhanging roof.
+    for (let x = -1; x <= W; x++) {
+      for (let z = -1; z <= D; z++) put(house.x + x, groundY + H + 1, house.z + z, Block.Plank);
+    }
+  }
+
+  /** A small ruined cobblestone tower: deliberately-broken walls (some
+   *  courses missing per a deterministic roll) around a single loot chest. */
+  private writeRuin(chunk: Chunk, baseX: number, baseZ: number, ruin: RuinSpec): void {
+    const W = 5, D = 5, H = 6;
+    const put = (wx: number, wy: number, wz: number, id: Block) => {
+      const lx = wx - baseX;
+      const lz = wz - baseZ;
+      if (lx < 0 || lx >= CHUNK_SIZE || lz < 0 || lz >= CHUNK_SIZE) return;
+      if (wy < 0 || wy >= CHUNK_HEIGHT) return;
+      chunk.blocks[Chunk.index(lx, wy, lz)] = id;
+    };
+    const corner = { x: ruin.x - 2, z: ruin.z - 2 };
+    const rng = mulberry32(hashCoords(this.seedNum, ruin.x, ruin.z, 0x6e1e));
+
+    // Clear interior overhead clutter (trees/hills) first, same as villages.
+    for (let dz = -3; dz <= 3; dz++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const lx = corner.x + dx + 2 - baseX;
+        const lz = corner.z + dz + 2 - baseZ;
+        if (lx < 0 || lx >= CHUNK_SIZE || lz < 0 || lz >= CHUNK_SIZE) continue;
+        for (let y = ruin.groundY + 1; y <= Math.min(CHUNK_HEIGHT - 1, ruin.groundY + H + 2); y++) {
+          chunk.blocks[Chunk.index(lx, y, lz)] = Block.Air;
+        }
+      }
+    }
+    // Floor.
+    for (let x = 0; x < W; x++) {
+      for (let z = 0; z < D; z++) put(corner.x + x, ruin.groundY, corner.z + z, Block.Cobblestone);
+    }
+    // Walls: each course on each edge cell independently has a chance of
+    // being missing — gives the tower a crumbling, ruined silhouette, taller
+    // toward the bottom (more intact) and sparser near the top.
+    for (let y = 1; y <= H; y++) {
+      const collapseChance = 0.15 + (y / H) * 0.55;
+      for (let x = 0; x < W; x++) {
+        for (let z = 0; z < D; z++) {
+          const isEdge = x === 0 || x === W - 1 || z === 0 || z === D - 1;
+          if (!isEdge) continue;
+          if (rng() < collapseChance) continue; // this block crumbled away
+          put(corner.x + x, ruin.groundY + y, corner.z + z, Block.Cobblestone);
+        }
+      }
+    }
+    // Loot chest at the exact center, always present regardless of collapse.
+    put(ruin.chestX, ruin.chestY, ruin.chestZ, Block.Chest);
   }
 
   /** Write the parts of a tree that fall inside this chunk. */

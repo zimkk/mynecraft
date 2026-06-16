@@ -42,8 +42,16 @@ export class Player {
   air = 10;
   static readonly MAX_AIR = 10;
 
+  // Experience: level + fractional progress (0..1) toward the next level.
+  level = 0;
+  xp = 0;
+
+  /** Potion effects: seconds remaining (0 = inactive). */
+  readonly effects = { strength: 0, swiftness: 0, resistance: 0 };
+
   onDamage?: (amount: number) => void;
   onDeath?: () => void;
+  onLevelUp?: (level: number) => void;
 
   /** Persistent horizontal velocity (excludes knockback) for momentum/friction. */
   private hvx = 0;
@@ -56,6 +64,7 @@ export class Player {
   private regenTimer = 0;
   private starveTimer = 0;
   private drownTimer = 0;
+  private voidDamageTimer = 0;
   private lastSpaceTap = 0;
   private readonly world: ChunkManager;
 
@@ -76,9 +85,15 @@ export class Player {
     );
   }
 
-  /** Apply damage (creative players are invulnerable). */
+  /** Instant heal (Potion of Healing); capped at full health. */
+  heal(amount: number): void {
+    this.health = Math.min(20, this.health + amount);
+  }
+
+  /** Apply damage (creative players are invulnerable; Resistance halves it). */
   damage(amount: number): void {
     if (this.creative || this.dead || amount <= 0) return;
+    if (this.effects.resistance > 0) amount *= 0.5;
     this.health = Math.max(0, this.health - amount);
     this.onDamage?.(amount);
     if (this.health <= 0) {
@@ -101,6 +116,32 @@ export class Player {
     this.saturation = Math.min(this.hunger, this.saturation + saturationValue);
   }
 
+  /** Points needed to go from `level` to `level + 1` (simplified, rising curve). */
+  static xpToNextLevel(level: number): number {
+    return 7 + level * 2;
+  }
+
+  /** Award XP (mob kills, ore mining); rolls over into level-ups. */
+  addXp(amount: number): void {
+    if (amount <= 0) return;
+    this.xp += amount;
+    let need = Player.xpToNextLevel(this.level);
+    while (this.xp >= need) {
+      this.xp -= need;
+      this.level++;
+      this.onLevelUp?.(this.level);
+      need = Player.xpToNextLevel(this.level);
+    }
+  }
+
+  /** Spend whole levels (enchanting cost); returns false if not enough. */
+  spendLevels(levels: number): boolean {
+    if (this.level < levels) return false;
+    this.level -= levels;
+    this.xp = 0;
+    return true;
+  }
+
   respawn(at: THREE.Vector3): void {
     this.position.copy(at);
     this.velocity.set(0, 0, 0);
@@ -111,8 +152,10 @@ export class Player {
     this.saturation = 5;
     this.air = Player.MAX_AIR;
     this.fallDistance = 0;
+    this.voidDamageTimer = 0;
     this.dead = false;
     this.flying = false;
+    // XP persists through death (Minecraft-style would drop some; kept simple).
   }
 
   update(dt: number, input: Input): void {
@@ -164,6 +207,7 @@ export class Player {
       ? (sprint ? FLY_SPRINT_SPEED : FLY_SPEED)
       : (sprint ? SPRINT_SPEED : WALK_SPEED);
     if (inWaterBody && !this.flying) speed *= 0.55; // water drag
+    if (this.effects.swiftness > 0 && !this.flying) speed *= 1.5; // Potion of Swiftness
 
     // Rotate the WASD input vector into world space by yaw. Camera forward is
     // (-sin, -cos) and camera right is (cos, -sin); with W = mz-1 (forward)
@@ -234,13 +278,23 @@ export class Player {
 
     this.updateSurvivalStats(dt, sprint && len > 0);
 
-    // Fell out of the world → pop back above ground.
+    this.effects.strength = Math.max(0, this.effects.strength - dt);
+    this.effects.swiftness = Math.max(0, this.effects.swiftness - dt);
+    this.effects.resistance = Math.max(0, this.effects.resistance - dt);
+
+    // Void damage: below the world (every dimension now has an unbreakable
+    // Bedrock floor, so in practice this only fires in the End's intentional
+    // bottomless void). Real Minecraft deals repeated damage until death
+    // rather than rescuing the player — much less jarring than a sudden
+    // teleport-and-fall, and death already respawns at the world spawn.
     if (this.position.y < -16) {
-      this.position.y = 100;
-      this.velocity.set(0, 0, 0);
-      this.hvx = 0;
-      this.hvz = 0;
-      this.damage(4);
+      this.voidDamageTimer += dt;
+      if (this.voidDamageTimer >= 0.5) {
+        this.voidDamageTimer = 0;
+        this.damage(4);
+      }
+    } else {
+      this.voidDamageTimer = 0;
     }
   }
 

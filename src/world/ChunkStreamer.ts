@@ -1,6 +1,6 @@
 import { Chunk, CHUNK_SIZE } from './Chunk';
 import { ChunkManager, chunkKey } from './ChunkManager';
-import { TerrainGenerator } from '../terrain/TerrainGenerator';
+import type { IWorldGenerator } from '../terrain/TerrainGenerator';
 import { ChunkRenderer } from '../rendering/ChunkRenderer';
 
 /**
@@ -8,24 +8,35 @@ import { ChunkRenderer } from '../rendering/ChunkRenderer';
  * (transferable block buffers) so the main thread never stalls; results are
  * integrated as they arrive, nearest-first. Chunks beyond renderDistance + 1
  * are unloaded (the +1 hysteresis avoids load/unload thrashing at the edge).
+ *
+ * Supports all three dimensions sharing this same instance (and the same
+ * ChunkManager/ChunkRenderer): `switchDimension` clears all loaded chunks,
+ * swaps the active generator, and restarts the worker pool. Overworld edits
+ * always live in the public `edits` map (so save logic is untouched); Nether
+ * and End edits each live in their own separate, non-persisted map.
  */
 export class ChunkStreamer {
   renderDistance: number;
   private readonly world: ChunkManager;
-  private readonly generator: TerrainGenerator;
+  generator: IWorldGenerator;
+  dimension: 'overworld' | 'nether' | 'end' = 'overworld';
   private readonly renderer: ChunkRenderer;
-  private readonly workers: Worker[] = [];
+  private workers: Worker[] = [];
   private nextWorker = 0;
   private readonly pending = new Set<string>();
-  /** Player-modified blocks to re-apply when a chunk regenerates: "wx,wy,wz" → id. */
+  /** Player-modified blocks to re-apply when a chunk regenerates: "wx,wy,wz" → id.
+   *  Overworld-only — persisted by save logic. */
   readonly edits = new Map<string, number>();
+  /** Nether/End edits — session-only, never persisted (deliberate simplification). */
+  private readonly netherEdits = new Map<string, number>();
+  private readonly endEdits = new Map<string, number>();
 
   private static readonly MAX_PENDING = 12;
   private static readonly WORKER_COUNT = Math.min(4, Math.max(2, (navigator.hardwareConcurrency ?? 4) - 2));
 
   constructor(
     world: ChunkManager,
-    generator: TerrainGenerator,
+    generator: IWorldGenerator,
     renderer: ChunkRenderer,
     renderDistance = 6,
   ) {
@@ -33,17 +44,40 @@ export class ChunkStreamer {
     this.generator = generator;
     this.renderer = renderer;
     this.renderDistance = renderDistance;
+    this.spawnWorkers();
+  }
 
+  private currentEdits(): Map<string, number> {
+    if (this.dimension === 'overworld') return this.edits;
+    return this.dimension === 'nether' ? this.netherEdits : this.endEdits;
+  }
+
+  private spawnWorkers(): void {
     for (let i = 0; i < ChunkStreamer.WORKER_COUNT; i++) {
       const worker = new Worker(new URL('../terrain/terrainWorker.ts', import.meta.url), {
         type: 'module',
       });
-      worker.postMessage({ type: 'init', seed: generator.seed });
+      worker.postMessage({ type: 'init', seed: this.generator.seed, kind: this.generator.kind });
       worker.onmessage = (e: MessageEvent<{ cx: number; cz: number; buffer: ArrayBuffer }>) => {
         this.integrateChunk(e.data.cx, e.data.cz, new Uint8Array(e.data.buffer));
       };
       this.workers.push(worker);
     }
+  }
+
+  /** Tear down all loaded chunks/meshes, swap the generator, and restart workers. */
+  switchDimension(dimension: 'overworld' | 'nether' | 'end', generator: IWorldGenerator): void {
+    for (const worker of this.workers) worker.terminate();
+    this.workers = [];
+    this.nextWorker = 0;
+    this.pending.clear();
+    for (const chunk of [...this.world.chunks.values()]) {
+      this.world.removeChunk(chunk.cx, chunk.cz);
+      this.renderer.removeChunkMesh(chunk.cx, chunk.cz);
+    }
+    this.dimension = dimension;
+    this.generator = generator;
+    this.spawnWorkers();
   }
 
   /** Call every frame with the player's world position. */
@@ -120,10 +154,11 @@ export class ChunkStreamer {
 
   /** Re-apply saved player edits that fall inside this chunk. */
   private applyEdits(chunk: Chunk): void {
-    if (this.edits.size === 0) return;
+    const edits = this.currentEdits();
+    if (edits.size === 0) return;
     const baseX = chunk.cx * CHUNK_SIZE;
     const baseZ = chunk.cz * CHUNK_SIZE;
-    for (const [key, id] of this.edits) {
+    for (const [key, id] of edits) {
       const [wx, wy, wz] = key.split(',').map(Number);
       const lx = wx - baseX;
       const lz = wz - baseZ;
@@ -135,7 +170,7 @@ export class ChunkStreamer {
 
   /** Record a player edit and apply it to the live world. */
   setBlock(wx: number, wy: number, wz: number, id: number): void {
-    this.edits.set(`${wx},${wy},${wz}`, id);
+    this.currentEdits().set(`${wx},${wy},${wz}`, id);
     this.world.setBlock(wx, wy, wz, id);
   }
 

@@ -3,13 +3,14 @@ import { Player } from './Player';
 import { raycastVoxel, RayHit } from './Raycast';
 import { ChunkManager } from '../world/ChunkManager';
 import { ChunkStreamer } from '../world/ChunkStreamer';
-import { Block, Tile, blockDef, isSolid } from '../world/BlockRegistry';
+import { Block, Tile, blockDef, isSolid, isUnbreakable } from '../world/BlockRegistry';
 import { ATLAS_COLS, ATLAS_ROWS } from '../rendering/TextureAtlas';
 import { Input } from '../core/Input';
 import { EntityManager } from '../entities/EntityManager';
 import { Inventory } from '../items/Inventory';
 import { Hotbar } from '../ui/Hotbar';
 import { itemDef, makeStack } from '../items/ItemRegistry';
+import { efficiencyMultiplier, unbreakingSavesDurability } from '../items/Enchanting';
 
 const REACH = 5.5;
 const PLACE_REPEAT_DELAY = 0.24;
@@ -119,7 +120,9 @@ export class BlockInteraction {
     }
 
     // ---- Breaking ----
-    if (this.target && input.buttonDown(0)) {
+    if (this.target && isUnbreakable(this.target.id)) {
+      this.resetBreaking();
+    } else if (this.target && input.buttonDown(0)) {
       if (this.isCreative()) {
         if (input.buttonJustPressed(0) || this.creativeBreakCooldown <= 0) {
           this.streamer.setBlock(this.target.x, this.target.y, this.target.z, Block.Air);
@@ -156,7 +159,7 @@ export class BlockInteraction {
     const held = this.hotbar.selectedStack;
     const tool = held ? itemDef(held.id)?.tool : undefined;
     const classMatch = def.toolClass !== undefined && tool?.class === def.toolClass;
-    const speed = classMatch && tool ? tool.speed : 1;
+    const speed = classMatch && tool ? tool.speed * efficiencyMultiplier(held?.enchant) : 1;
     const canHarvest =
       !def.requiresTool || (classMatch && (tool?.harvestLevel ?? -1) >= def.minHarvest);
 
@@ -175,6 +178,7 @@ export class BlockInteraction {
   }
 
   private finishBreak(target: RayHit, canHarvest: boolean, usedTool: boolean): void {
+    if (isUnbreakable(target.id)) return; // defense-in-depth — the input gate above already blocks this
     const def = blockDef(target.id);
     this.streamer.setBlock(target.x, target.y, target.z, Block.Air);
     this.onBlockBroken?.(target.id, target.x, target.y, target.z);
@@ -195,7 +199,7 @@ export class BlockInteraction {
     // Durability: one point per block (only blocks with real hardness).
     if (usedTool && def.hardness > 0.05) {
       const held = this.hotbar.selectedStack;
-      if (held?.durability !== undefined) {
+      if (held?.durability !== undefined && !unbreakingSavesDurability(held.enchant)) {
         held.durability--;
         if (held.durability <= 0) {
           this.inventory.set(this.hotbar.selected, null);

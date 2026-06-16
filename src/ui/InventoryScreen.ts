@@ -3,6 +3,8 @@ import { Inventory, HOTBAR_SIZE, INVENTORY_SIZE } from '../items/Inventory';
 import { ItemStack, allItems, itemDef, makeStack, maxStackOf, stacksMatch } from '../items/ItemRegistry';
 import { matchRecipe } from '../crafting/Recipes';
 import { FurnaceState } from '../world/Furnace';
+import { ChestState, CHEST_SLOTS } from '../world/Chest';
+import { BrewingState } from '../world/Brewing';
 import { renderSlotContents, iconURL } from './Hotbar';
 
 export interface InventoryScreenCallbacks {
@@ -15,12 +17,15 @@ export interface InventoryScreenCallbacks {
 }
 
 // Virtual slot indices: 0..35 inventory, 100..108 craft grid, 200 result,
-// 300/301/302 furnace input/fuel/output.
+// 300/301/302 furnace input/fuel/output, 400..426 chest, 500..503 brewing.
 const CRAFT_BASE = 100;
 const RESULT_SLOT = 200;
 const FURNACE_INPUT = 300;
 const FURNACE_FUEL = 301;
 const FURNACE_OUTPUT = 302;
+const CHEST_BASE = 400; // 400..426, 27 slots
+const BREW_REAGENT = 500;
+const BREW_BOTTLE_BASE = 501; // 501..503, 3 bottle slots
 
 /**
  * Inventory screen (toggle E): crafting grid (2×2 standalone, 3×3 at a
@@ -34,11 +39,18 @@ export class InventoryScreen {
   private readonly craftSlots: Array<ItemStack | null> = new Array(9).fill(null);
   /** Open furnace (UI shows its slots live); null outside furnace mode. */
   private furnaceState: FurnaceState | null = null;
+  /** Open chest's 27 slots; null outside chest mode. */
+  private chestState: ChestState | null = null;
+  /** Open brewing stand's slots; null outside brewing mode. */
+  private brewState: BrewingState | null = null;
   private craftRowEl!: HTMLElement;
   private furnaceRowEl!: HTMLElement;
+  private chestRowEl!: HTMLElement;
+  private brewRowEl!: HTMLElement;
   private playerPreviewEl!: HTMLElement;
   private smeltFillEl!: HTMLElement;
   private flameFillEl!: HTMLElement;
+  private brewFillEl!: HTMLElement;
   private readonly root: HTMLElement;
   private readonly cursorEl: HTMLElement;
   private readonly slotEls = new Map<number, HTMLElement>();
@@ -112,6 +124,33 @@ export class InventoryScreen {
     furnRow.appendChild(this.makeSlot(FURNACE_OUTPUT));
     panel.appendChild(furnRow);
     this.furnaceRowEl = furnRow;
+
+    // Chest area: 3×9 grid of external slots (separate from the player's own).
+    const chestRow = document.createElement('div');
+    chestRow.className = 'inv-grid chest-grid';
+    chestRow.style.display = 'none';
+    for (let i = 0; i < CHEST_SLOTS; i++) {
+      chestRow.appendChild(this.makeSlot(CHEST_BASE + i));
+    }
+    panel.appendChild(chestRow);
+    this.chestRowEl = chestRow;
+
+    // Brewing area: reagent slot over a progress bar, three bottle slots.
+    const brewRow = document.createElement('div');
+    brewRow.className = 'craft-row brewing-row';
+    brewRow.style.display = 'none';
+    brewRow.appendChild(this.makeSlot(BREW_REAGENT));
+    const brewBar = document.createElement('div');
+    brewBar.className = 'brew-bar';
+    this.brewFillEl = document.createElement('div');
+    brewBar.appendChild(this.brewFillEl);
+    brewRow.appendChild(brewBar);
+    const bottleCol = document.createElement('div');
+    bottleCol.className = 'brew-bottles';
+    for (let i = 0; i < 3; i++) bottleCol.appendChild(this.makeSlot(BREW_BOTTLE_BASE + i));
+    brewRow.appendChild(bottleCol);
+    panel.appendChild(brewRow);
+    this.brewRowEl = brewRow;
 
     // Main 3×9 grid: inventory indices 9..35.
     const mainGrid = document.createElement('div');
@@ -199,6 +238,11 @@ export class InventoryScreen {
     if (index === FURNACE_INPUT) return this.furnaceState?.input ?? null;
     if (index === FURNACE_FUEL) return this.furnaceState?.fuel ?? null;
     if (index === FURNACE_OUTPUT) return this.furnaceState?.output ?? null;
+    if (index === BREW_REAGENT) return this.brewState?.reagent ?? null;
+    if (index >= BREW_BOTTLE_BASE && index < BREW_BOTTLE_BASE + 3) {
+      return this.brewState?.bottles[index - BREW_BOTTLE_BASE] ?? null;
+    }
+    if (index >= CHEST_BASE) return this.chestState?.[index - CHEST_BASE] ?? null;
     if (index >= CRAFT_BASE) return this.craftSlots[index - CRAFT_BASE];
     return this.inventory.get(index);
   }
@@ -208,6 +252,12 @@ export class InventoryScreen {
     if (index === FURNACE_INPUT) { if (this.furnaceState) this.furnaceState.input = stack; return; }
     if (index === FURNACE_FUEL) { if (this.furnaceState) this.furnaceState.fuel = stack; return; }
     if (index === FURNACE_OUTPUT) { if (this.furnaceState) this.furnaceState.output = stack; return; }
+    if (index === BREW_REAGENT) { if (this.brewState) this.brewState.reagent = stack; return; }
+    if (index >= BREW_BOTTLE_BASE && index < BREW_BOTTLE_BASE + 3) {
+      if (this.brewState) this.brewState.bottles[index - BREW_BOTTLE_BASE] = stack;
+      return;
+    }
+    if (index >= CHEST_BASE) { if (this.chestState) this.chestState[index - CHEST_BASE] = stack; return; }
     if (index >= CRAFT_BASE) this.craftSlots[index - CRAFT_BASE] = stack;
     else this.inventory.set(index, stack);
   }
@@ -274,8 +324,12 @@ export class InventoryScreen {
     if (shift && button === 0) {
       if (!slot) return;
       if (index >= CRAFT_BASE) {
-        // Craft grid → inventory.
+        // Craft grid / furnace / chest → player inventory.
         const leftover = this.inventory.add(slot);
+        this.setSlot(index, leftover > 0 ? { ...slot, count: leftover } : null);
+      } else if (this.chestState) {
+        // Player inventory → open chest.
+        const leftover = this.quickMoveIntoChest(slot);
         this.setSlot(index, leftover > 0 ? { ...slot, count: leftover } : null);
       } else {
         // Quick-move between hotbar and main section.
@@ -352,13 +406,41 @@ export class InventoryScreen {
     inv.set(from, stack.count > 0 ? stack : null);
   }
 
+  /** Merge a stack into the open chest (matching stacks first, then empties). Returns leftover count. */
+  private quickMoveIntoChest(stack: ItemStack): number {
+    const chest = this.chestState;
+    if (!chest) return stack.count;
+    let remaining = stack.count;
+    const max = maxStackOf(stack.id);
+    for (let i = 0; i < CHEST_SLOTS && remaining > 0; i++) {
+      const s = chest[i];
+      if (s && stacksMatch(s, stack) && s.count < max) {
+        const take = Math.min(max - s.count, remaining);
+        s.count += take;
+        remaining -= take;
+      }
+    }
+    for (let i = 0; i < CHEST_SLOTS && remaining > 0; i++) {
+      if (!chest[i]) {
+        const take = Math.min(max, remaining);
+        chest[i] = { ...stack, count: take };
+        remaining -= take;
+      }
+    }
+    return remaining;
+  }
+
   /** mode 2 = personal 2×2 grid; mode 3 = crafting table 3×3. */
   openScreen(mode: 2 | 3 = 2): void {
     this.open = true;
     this.furnaceState = null;
+    this.chestState = null;
+    this.brewState = null;
     this.titleEl.textContent = 'Crafting';
     this.craftRowEl.style.display = 'flex';
     this.furnaceRowEl.style.display = 'none';
+    this.chestRowEl.style.display = 'none';
+    this.brewRowEl.style.display = 'none';
     this.playerPreviewEl.style.display = mode === 2 ? 'flex' : 'none';
     // Hide the outer craft cells in 2×2 mode (they are empty by invariant).
     for (let i = 0; i < 9; i++) {
@@ -375,22 +457,64 @@ export class InventoryScreen {
   openFurnace(state: FurnaceState): void {
     this.open = true;
     this.furnaceState = state;
+    this.chestState = null;
+    this.brewState = null;
     this.titleEl.textContent = 'Furnace';
     this.craftRowEl.style.display = 'none';
     this.furnaceRowEl.style.display = 'flex';
+    this.chestRowEl.style.display = 'none';
+    this.brewRowEl.style.display = 'none';
+    this.root.style.display = 'flex';
+    this.refresh();
+  }
+
+  /** Open a chest's 27 external slots alongside the player's own inventory. */
+  openChest(state: ChestState): void {
+    this.open = true;
+    this.furnaceState = null;
+    this.chestState = state;
+    this.brewState = null;
+    this.titleEl.textContent = 'Chest';
+    this.craftRowEl.style.display = 'none';
+    this.furnaceRowEl.style.display = 'none';
+    this.chestRowEl.style.display = 'grid';
+    this.brewRowEl.style.display = 'none';
+    this.root.style.display = 'flex';
+    this.refresh();
+  }
+
+  /** Open a brewing stand's reagent + 3 bottle slots. */
+  openBrewing(state: BrewingState): void {
+    this.open = true;
+    this.furnaceState = null;
+    this.chestState = null;
+    this.brewState = state;
+    this.titleEl.textContent = 'Brewing Stand';
+    this.craftRowEl.style.display = 'none';
+    this.furnaceRowEl.style.display = 'none';
+    this.chestRowEl.style.display = 'none';
+    this.brewRowEl.style.display = 'flex';
     this.root.style.display = 'flex';
     this.refresh();
   }
 
   /** Live indicator refresh while a furnace is open (called from the render loop). */
   tickFurnaceUI(): void {
-    if (!this.open || !this.furnaceState) return;
-    const s = this.furnaceState;
-    this.smeltFillEl.style.width = `${Math.round(s.progress * 100)}%`;
-    this.flameFillEl.style.height = `${s.fuelTotal > 0 ? Math.round((s.fuelLeft / s.fuelTotal) * 100) : 0}%`;
-    // Slot contents change as items smelt — re-render the furnace slots only.
-    for (const idx of [FURNACE_INPUT, FURNACE_FUEL, FURNACE_OUTPUT]) {
-      renderSlotContents(this.slotEls.get(idx)!, this.getSlot(idx), this.atlas);
+    if (this.open && this.furnaceState) {
+      const s = this.furnaceState;
+      this.smeltFillEl.style.width = `${Math.round(s.progress * 100)}%`;
+      this.flameFillEl.style.height = `${s.fuelTotal > 0 ? Math.round((s.fuelLeft / s.fuelTotal) * 100) : 0}%`;
+      // Slot contents change as items smelt — re-render the furnace slots only.
+      for (const idx of [FURNACE_INPUT, FURNACE_FUEL, FURNACE_OUTPUT]) {
+        renderSlotContents(this.slotEls.get(idx)!, this.getSlot(idx), this.atlas);
+      }
+    }
+    if (this.open && this.brewState) {
+      const s = this.brewState;
+      this.brewFillEl.style.width = `${Math.round(s.progress * 100)}%`;
+      for (const idx of [BREW_REAGENT, BREW_BOTTLE_BASE, BREW_BOTTLE_BASE + 1, BREW_BOTTLE_BASE + 2]) {
+        renderSlotContents(this.slotEls.get(idx)!, this.getSlot(idx), this.atlas);
+      }
     }
   }
 
@@ -411,8 +535,10 @@ export class InventoryScreen {
         this.craftSlots[i] = null;
       }
     }
-    // Furnace contents stay with the furnace block.
+    // Furnace/chest/brewing contents stay with their block.
     this.furnaceState = null;
+    this.chestState = null;
+    this.brewState = null;
     this.cursorEl.innerHTML = '';
   }
 

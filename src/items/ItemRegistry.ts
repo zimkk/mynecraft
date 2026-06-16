@@ -24,6 +24,8 @@ export interface FoodDef {
   saturation: number;
 }
 
+export type PotionType = 'healing' | 'strength' | 'swiftness' | 'resistance';
+
 export interface ItemDef {
   id: string;
   name: string;
@@ -35,12 +37,23 @@ export interface ItemDef {
   blockId?: Block;
   tool?: ToolDef;
   food?: FoodDef;
+  /** Drinkable potion effect (right-click to consume; leaves an empty bottle). */
+  potion?: PotionType;
+}
+
+export type EnchantType = 'efficiency' | 'sharpness' | 'unbreaking';
+
+export interface Enchant {
+  type: EnchantType;
+  level: number;
 }
 
 export interface ItemStack {
   id: string;
   count: number;
   durability?: number;
+  /** Applied by the enchanting table; tool/weapon-specific (see Enchant.ts). */
+  enchant?: Enchant;
 }
 
 const REGISTRY = new Map<string, ItemDef>();
@@ -74,6 +87,7 @@ register({ id: 'diamond', name: 'Diamond', type: 'material', maxStack: 64, icon:
 register({ id: 'stick', name: 'Stick', type: 'material', maxStack: 64, icon: Tile.Stick });
 register({ id: 'iron_ingot', name: 'Iron Ingot', type: 'material', maxStack: 64, icon: Tile.IronIngot });
 register({ id: 'gold_ingot', name: 'Gold Ingot', type: 'material', maxStack: 64, icon: Tile.GoldIngot });
+register({ id: 'emerald', name: 'Emerald', type: 'material', maxStack: 64, icon: Tile.EmeraldItem });
 
 registerBlockItem(Block.CraftingTable, 'crafting_table', 'Crafting Table');
 registerBlockItem(Block.Furnace, 'furnace', 'Furnace');
@@ -84,6 +98,34 @@ register({ id: 'apple', name: 'Apple', type: 'food', maxStack: 64, icon: Tile.Ap
 register({ id: 'raw_porkchop', name: 'Raw Porkchop', type: 'food', maxStack: 64, icon: Tile.RawPorkchop, food: { hunger: 3, saturation: 1.8 } });
 register({ id: 'cooked_porkchop', name: 'Cooked Porkchop', type: 'food', maxStack: 64, icon: Tile.CookedPorkchop, food: { hunger: 8, saturation: 12.8 } });
 registerBlockItem(Block.Wool, 'wool', 'Wool');
+registerBlockItem(Block.Chest, 'chest', 'Chest');
+registerBlockItem(Block.RedstoneWire, 'redstone', 'Redstone Dust');
+registerBlockItem(Block.RedstoneTorch, 'redstone_torch', 'Redstone Torch');
+registerBlockItem(Block.LeverOff, 'lever', 'Lever');
+registerBlockItem(Block.ButtonOff, 'button', 'Button');
+registerBlockItem(Block.RedstoneLampOff, 'redstone_lamp', 'Redstone Lamp');
+registerBlockItem(Block.LapisOre, 'lapis_ore', 'Lapis Ore');
+registerBlockItem(Block.Obsidian, 'obsidian', 'Obsidian');
+registerBlockItem(Block.EnchantingTable, 'enchanting_table', 'Enchanting Table');
+register({ id: 'lapis', name: 'Lapis Lazuli', type: 'material', maxStack: 64, icon: Tile.LapisOre });
+register({ id: 'book', name: 'Book', type: 'material', maxStack: 64, icon: Tile.Book });
+registerBlockItem(Block.BrewingStand, 'brewing_stand', 'Brewing Stand');
+register({ id: 'glass_bottle', name: 'Glass Bottle', type: 'material', maxStack: 64, icon: Tile.GlassBottle });
+register({ id: 'potion_water', name: 'Water Bottle', type: 'misc', maxStack: 1, icon: Tile.PotionWater });
+register({ id: 'potion_healing', name: 'Potion of Healing', type: 'misc', maxStack: 1, icon: Tile.PotionHealing, potion: 'healing' });
+register({ id: 'potion_strength', name: 'Potion of Strength', type: 'misc', maxStack: 1, icon: Tile.PotionStrength, potion: 'strength' });
+register({ id: 'potion_swiftness', name: 'Potion of Swiftness', type: 'misc', maxStack: 1, icon: Tile.PotionSwiftness, potion: 'swiftness' });
+register({ id: 'potion_resistance', name: 'Potion of Resistance', type: 'misc', maxStack: 1, icon: Tile.PotionResistance, potion: 'resistance' });
+
+registerBlockItem(Block.Netherrack, 'netherrack', 'Netherrack');
+registerBlockItem(Block.SoulSand, 'soul_sand', 'Soul Sand');
+registerBlockItem(Block.Glowstone, 'glowstone', 'Glowstone');
+register({ id: 'flint_and_steel', name: 'Flint and Steel', type: 'misc', maxStack: 1, icon: Tile.FlintAndSteelItem });
+
+registerBlockItem(Block.EndStone, 'end_stone', 'End Stone');
+registerBlockItem(Block.EndPortalFrame, 'end_portal_frame', 'End Portal Frame');
+register({ id: 'ender_eye', name: 'Eye of Ender', type: 'misc', maxStack: 64, icon: Tile.EnderEyeItem });
+register({ id: 'dragon_egg', name: 'Dragon Egg', type: 'misc', maxStack: 1, icon: Tile.DragonEggItem });
 
 // ---- Tools: one item per class × tier, icons from the atlas tool grid ----
 

@@ -67,6 +67,19 @@
         position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%);
         width: 426px; pointer-events: none; user-select: none;
       }
+
+      /* ---- XP bar (green fill, level number on top) ---- */
+      #xp-bar {
+        position: fixed; bottom: 54px; left: 50%; transform: translateX(-50%);
+        width: 400px; height: 6px; background: #000; border: 1px solid #1a1a1a;
+        pointer-events: none; user-select: none;
+      }
+      #xp-bar-fill { height: 100%; background: #5ce62d; width: 0%; }
+      #xp-level {
+        position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%);
+        font-family: var(--mc-font); font-size: 16px; color: #5ce62d;
+        text-shadow: 2px 2px 0 #2c2c2c; pointer-events: none; user-select: none;
+      }
       .stat-top { display: flex; justify-content: space-between; }
       .stat-row { display: flex; gap: 1px; height: 18px; }
       .stat-row.hearts { justify-content: flex-start; }
@@ -131,6 +144,34 @@
       }
       .smelt-bar::before { content: ''; position: absolute; inset: 0; background: #5a5a5a; }
       .smelt-bar > div { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #dadada; }
+
+      /* brewing stand: reagent + progress + 3 bottle slots */
+      .brewing-row { gap: 14px; }
+      .brew-bar { width: 60px; height: 14px; background: #5a5a5a; position: relative; overflow: hidden; }
+      .brew-bar > div { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #8a4fc9; }
+      .brew-bottles { display: flex; gap: 4px; }
+
+      /* ---- Villager trade screen ---- */
+      #trade-screen {
+        position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+        background: rgba(0,0,0,0.5); z-index: 9; font-family: var(--mc-font);
+      }
+      .trade-panel { min-width: 320px; }
+      .trade-list { display: flex; flex-direction: column; gap: 8px; }
+      .trade-row {
+        display: flex; align-items: center; gap: 8px; background: var(--mc-slot);
+        border: 2px solid; border-color: var(--mc-slot-dark) #fff #fff var(--mc-slot-dark); padding: 6px 8px;
+      }
+      .trade-row img { width: 28px; height: 28px; image-rendering: pixelated; }
+      .trade-row span { font-size: 18px; color: #fff; text-shadow: 1px 1px 0 #000; }
+      .trade-arrow { margin: 0 2px; }
+      .trade-row button {
+        margin-left: auto; font-family: var(--mc-font); font-size: 17px; color: #e8e8e8; text-shadow: 1px 1px 0 #1f1f1f;
+        background: #6b6b6b; border: 2px solid; border-color: #fff #000 #000 #fff; padding: 4px 10px; cursor: pointer;
+      }
+      .trade-row button:hover:not(:disabled) { background: #73839a; color: #ffffa0; }
+      .trade-row button:disabled { opacity: 0.5; cursor: default; }
+      .trade-hint { font-size: 15px; color: #6b6b6b; text-align: center; margin-top: 4px; }
 
       /* main inventory + hotbar-row grids */
       .inv-grid { display: grid; grid-template-columns: repeat(9, 40px); gap: 2px; }

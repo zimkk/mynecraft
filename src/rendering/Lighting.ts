@@ -5,6 +5,18 @@ import { isOpaque, Block } from '../world/BlockRegistry';
 const CELLS = CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE;
 export const TORCH_LIGHT = 14;
 
+/** Per-block-id light emission level (0 = doesn't emit). Lava/Glowstone glow
+ *  noticeably, matching the real game — caves with lava pools aren't pitch black. */
+const LIGHT_EMITTERS: Record<number, number> = {
+  [Block.Torch]: TORCH_LIGHT,
+  [Block.RedstoneTorch]: 12,
+  [Block.RedstoneLampOn]: 13,
+  [Block.Glowstone]: 15,
+  [Block.Lava]: 14,
+  [Block.NetherPortal]: 11,
+  [Block.EndPortal]: 11,
+};
+
 // Scratch BFS queue (chunk-local cell indices), reused across computations.
 const queue = new Int32Array(CELLS);
 
@@ -42,11 +54,12 @@ export function computeChunkLight(chunk: Chunk): void {
   }
   bfs(sky, blocks, qLen);
 
-  // --- Block light: torches ---
+  // --- Block light: torches, lava, glowstone, redstone torches/lamps ---
   qLen = 0;
   for (let idx = 0; idx < CELLS; idx++) {
-    if (blocks[idx] === Block.Torch) {
-      blk[idx] = TORCH_LIGHT;
+    const level = LIGHT_EMITTERS[blocks[idx]];
+    if (level) {
+      blk[idx] = level;
       queue[qLen++] = idx;
     }
   }

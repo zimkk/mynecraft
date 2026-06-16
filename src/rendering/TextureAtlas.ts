@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Tile } from '../world/BlockRegistry';
 
 export const ATLAS_COLS = 8;
-export const ATLAS_ROWS = 8;
+export const ATLAS_ROWS = 13;
 export const TILE_PX = 16;
 
 /** Deterministic RNG so the generated textures look the same every run. */
@@ -88,6 +88,7 @@ const PAINTERS: Record<number, TilePainter> = {
   [Tile.DiamondOre]: ore(95, 225, 220),
   [Tile.CoalItem]: itemBlob(35, 35, 35),
   [Tile.DiamondItem]: itemBlob(95, 225, 220),
+  [Tile.EmeraldItem]: itemBlob(60, 200, 110),
   [Tile.Stick]: (x, y) => {
     // Diagonal stick from bottom-left to top-right.
     const onStick = Math.abs(x - (15 - y)) <= 1 && x > 2 && x < 13;
@@ -186,6 +187,26 @@ PAINTERS[Tile.Apple] = (x, y, rng) => {
   return [200 + n + hi, 40 + n, 35 + n, 255];
 };
 
+PAINTERS[Tile.ChestTop] = (x, y, rng) => {
+  // Plank lid with a dark metal latch in the center.
+  const border = x <= 0 || y <= 0 || x >= 15 || y >= 15;
+  const latch = x >= 6 && x <= 9 && y >= 6 && y <= 9;
+  const n = (rng() - 0.5) * 14;
+  if (latch) return [60, 55, 50, 255];
+  if (border) return [96 + n, 72 + n, 44 + n, 255];
+  return [168 + n, 133 + n, 81 + n, 255];
+};
+
+PAINTERS[Tile.ChestSide] = (x, y, rng) => {
+  // Plank body split by a horizontal lid seam, with a metal latch strip down the middle.
+  const seam = y === 6 || y === 7;
+  const latch = x >= 7 && x <= 8 && y >= 4 && y <= 11;
+  const n = (rng() - 0.5) * 14;
+  if (latch) return [60, 55, 50, 255];
+  if (seam) return [70 + n, 53 + n, 32 + n, 255];
+  return [168 + n, 133 + n, 81 + n, 255];
+};
+
 PAINTERS[Tile.Wool] = (x, y, rng) => {
   // Curly white fleece: bright base with wavy shadow strands.
   const wave = Math.sin(x * 1.7 + y * 0.9) + Math.cos(y * 1.5 - x * 0.6);
@@ -207,6 +228,244 @@ function porkchop(cooked: boolean): TilePainter {
 }
 PAINTERS[Tile.RawPorkchop] = porkchop(false);
 PAINTERS[Tile.CookedPorkchop] = porkchop(true);
+
+PAINTERS[Tile.RedstoneWire] = (x, y, rng) => {
+  // Thin red line crossing the tile (used by the flat wire model).
+  const onLine = Math.abs(x - 7.5) <= 1.5 || Math.abs(y - 7.5) <= 1.5;
+  if (!onLine) return [0, 0, 0, 0];
+  const n = (rng() - 0.5) * 20;
+  return [180 + n, 20 + n * 0.3, 10 + n * 0.3, 255];
+};
+
+PAINTERS[Tile.RedstoneTorch] = (x, y) => {
+  const onStick = x >= 7 && x <= 8;
+  if (!onStick) return [0, 0, 0, 0];
+  if (y <= 2) return [255, 40, 30, 255]; // glowing red head
+  if (y <= 4) return [180, 30, 20, 255];
+  return [137, 103, 57, 255]; // handle
+};
+
+function leverPainter(on: boolean): TilePainter {
+  return (x, y, rng) => {
+    const dx = x - 7.5;
+    const dy = y - 7.5;
+    const inBase = y >= 11;
+    if (inBase) {
+      const n = (rng() - 0.5) * 16;
+      return [110 + n, 110 + n, 110 + n, 255];
+    }
+    const onArm = Math.abs(dx + (on ? dy : -dy)) <= 1.2 && y < 12;
+    if (!onArm) return [0, 0, 0, 0];
+    return [60, 45, 30, 255];
+  };
+}
+PAINTERS[Tile.LeverOff] = leverPainter(false);
+PAINTERS[Tile.LeverOn] = leverPainter(true);
+
+function buttonPainter(on: boolean): TilePainter {
+  return (x, y, rng) => {
+    const dx = x - 7.5;
+    const dy = y - 7.5;
+    if (dx * dx + dy * dy > 18) return [0, 0, 0, 0];
+    const n = (rng() - 0.5) * 16;
+    const base = on ? [200, 40 + n, 30 + n] : [120 + n, 100 + n, 90 + n];
+    return [base[0], base[1], base[2], 255];
+  };
+}
+PAINTERS[Tile.ButtonOff] = buttonPainter(false);
+PAINTERS[Tile.ButtonOn] = buttonPainter(true);
+
+function lampPainter(on: boolean): TilePainter {
+  return (x, y, rng) => {
+    const grid = x % 4 === 0 || y % 4 === 0;
+    const n = (rng() - 0.5) * 14;
+    const base = on ? 235 : 130;
+    const tint = on ? [base + n, base * 0.85 + n, base * 0.35 + n] : [base + n, base + n, base + n * 0.9];
+    const d = grid ? -20 : 0;
+    return [tint[0] + d, tint[1] + d, tint[2] + d, 255];
+  };
+}
+PAINTERS[Tile.RedstoneLampOff] = lampPainter(false);
+PAINTERS[Tile.RedstoneLampOn] = lampPainter(true);
+
+PAINTERS[Tile.LapisOre] = ore(40, 70, 220);
+
+PAINTERS[Tile.Obsidian] = (x, y, rng) => {
+  const n = (rng() - 0.5) * 14;
+  const purple = (x * 3 + y * 5) % 11 === 0 ? 18 : 0;
+  return [28 + n + purple, 18 + n, 42 + n + purple * 2, 255];
+};
+
+PAINTERS[Tile.EnchantingTableTop] = (x, y, rng) => {
+  // Obsidian frame around a glowing "book" inset.
+  const border = x <= 1 || y <= 1 || x >= 14 || y >= 14;
+  const inset = x >= 4 && x <= 11 && y >= 4 && y <= 11;
+  const n = (rng() - 0.5) * 14;
+  if (border) return [28 + n, 18 + n, 42 + n, 255];
+  if (inset) return [120 + n, 60 + n, 180 + n, 255];
+  return [60 + n, 45 + n, 80 + n, 255];
+};
+
+PAINTERS[Tile.EnchantingTableSide] = (_x, _y, rng) => {
+  const n = (rng() - 0.5) * 14;
+  return [28 + n, 18 + n, 42 + n, 255];
+};
+
+PAINTERS[Tile.Book] = (x, y, rng) => {
+  const dx = x - 7.5;
+  const dy = y - 7.5;
+  if (Math.abs(dx) > 5.5 || Math.abs(dy) > 4.5) return [0, 0, 0, 0];
+  const n = (rng() - 0.5) * 14;
+  if (Math.abs(dx) < 0.6) return [60, 45, 30, 255]; // spine
+  return dx < 0 ? [225 + n, 90 + n, 60 + n, 255] : [240 + n, 235 + n, 210 + n, 255];
+};
+
+PAINTERS[Tile.BrewingStandTop] = (x, y, rng) => {
+  // Stone base seen from above with three bottle-neck holes around the post.
+  const dPost = Math.hypot(x - 7.5, y - 7.5);
+  if (dPost < 2.2) return [40, 35, 30, 255]; // post hole, dark
+  const holes: Array<[number, number]> = [[4, 4], [11, 4], [7.5, 12]];
+  for (const [hx, hy] of holes) {
+    if (Math.hypot(x - hx, y - hy) < 1.6) return [25, 22, 20, 255];
+  }
+  const n = (rng() - 0.5) * 14;
+  return [120 + n, 120 + n, 120 + n, 255];
+};
+
+PAINTERS[Tile.BrewingStandSide] = (_x, _y, rng) => {
+  const n = (rng() - 0.5) * 14;
+  return [110 + n, 110 + n, 110 + n, 255];
+};
+
+PAINTERS[Tile.GlassBottle] = (x, y, rng) => {
+  const dx = x - 7.5;
+  const inNeck = Math.abs(dx) < 1 && y >= 1 && y < 5;
+  const inBody = Math.abs(dx) < 3 - Math.max(0, 4 - (y - 5)) * 0.3 && y >= 5 && y < 14;
+  if (!inNeck && !inBody) return [0, 0, 0, 0];
+  const n = (rng() - 0.5) * 12;
+  return [200 + n, 220 + n, 200 + n, 160];
+};
+
+function potionPainter(r: number, g: number, b: number): TilePainter {
+  return (x, y, rng) => {
+    const dx = x - 7.5;
+    const inNeck = Math.abs(dx) < 1 && y >= 1 && y < 5;
+    const inBody = Math.abs(dx) < 3 - Math.max(0, 4 - (y - 5)) * 0.3 && y >= 5 && y < 14;
+    if (!inNeck && !inBody) return [0, 0, 0, 0];
+    if (inNeck) {
+      const n = (rng() - 0.5) * 12;
+      return [200 + n, 220 + n, 200 + n, 160];
+    }
+    const n = (rng() - 0.5) * 18;
+    return [r + n, g + n, b + n, 235];
+  };
+}
+PAINTERS[Tile.PotionWater] = potionPainter(60, 110, 220);
+PAINTERS[Tile.PotionHealing] = potionPainter(230, 60, 90);
+PAINTERS[Tile.PotionStrength] = potionPainter(150, 40, 40);
+PAINTERS[Tile.PotionSwiftness] = potionPainter(220, 210, 90);
+PAINTERS[Tile.PotionResistance] = potionPainter(110, 90, 160);
+
+PAINTERS[Tile.Netherrack] = (x, y, rng) => {
+  // Pitted dark-red rock with scattered darker pockmarks.
+  const pit = (Math.imul(x * 13 + 7, y * 17 + 11) >>> 4) % 23 === 0;
+  const n = (rng() - 0.5) * 22;
+  const base = pit ? -30 : 0;
+  return [102 + base + n, 38 + base + n * 0.5, 38 + base + n * 0.5, 255];
+};
+
+PAINTERS[Tile.SoulSand] = (x, y, rng) => {
+  // Tan sand with dark "tendril" wisps poking up.
+  const wisp = (x * 3 + y * 5) % 13 === 0;
+  const n = (rng() - 0.5) * 16;
+  const base = wisp ? -35 : 0;
+  return [100 + base + n, 78 + base + n * 0.8, 60 + base + n * 0.6, 255];
+};
+
+PAINTERS[Tile.Glowstone] = (x, y, rng) => {
+  // Bright warm crystal facets with darker cell seams.
+  const seam = x % 4 === 0 || y % 4 === 0;
+  const n = (rng() - 0.5) * 20;
+  const base = seam ? -25 : 0;
+  return [235 + base + n, 200 + base + n * 0.8, 110 + base + n * 0.5, 255];
+};
+
+PAINTERS[Tile.NetherPortal] = (x, y, rng) => {
+  // Swirling violet void.
+  const swirl = Math.sin(x * 0.9 + y * 0.5) + Math.cos(y * 0.7 - x * 0.4);
+  const n = (rng() - 0.5) * 20;
+  const base = swirl > 0.3 ? 60 : 20;
+  return [110 + base + n, 30 + n * 0.3, 200 + base + n, 210];
+};
+
+PAINTERS[Tile.Lava] = (_x, _y, rng) => {
+  const n = (rng() - 0.5) * 30;
+  return [235 + n * 0.3, 95 + n, 25 + n * 0.5, 255];
+};
+
+PAINTERS[Tile.FlintAndSteelItem] = (x, y) => {
+  // Gray flint shard crossed by a thin steel rod.
+  const onSteel = Math.abs(x - (15 - y)) <= 1 && x > 1 && x < 14;
+  const dx = x - 6;
+  const dy = y - 9;
+  const onFlint = dx * dx + dy * dy * 1.3 < 16;
+  if (onFlint) return [90, 90, 96, 255];
+  if (onSteel) return [180, 180, 188, 255];
+  return [0, 0, 0, 0];
+};
+
+PAINTERS[Tile.Bedrock] = (x, y, rng) => {
+  // Dark, rough, almost-black rock with chunky lighter speckles — visually
+  // distinct from regular Stone so the unbreakable floor reads as special.
+  const speck = (Math.imul(x * 11 + 3, y * 7 + 5) >>> 3) % 9 === 0;
+  const n = (rng() - 0.5) * 18;
+  const base = speck ? 18 : 0;
+  return [48 + base + n, 46 + base + n, 50 + base + n, 255];
+};
+
+PAINTERS[Tile.EndStone] = (x, y, rng) => {
+  // Pale yellow-green pocked stone.
+  const speck = (x * 7 + y * 11) % 17 === 0;
+  const n = (rng() - 0.5) * 16;
+  const base = speck ? -20 : 0;
+  return [220 + base + n, 222 + base + n, 175 + base + n * 0.8, 255];
+};
+
+PAINTERS[Tile.EndPortalFrame] = (x, y, rng) => {
+  // Dark teal-green stone with a faint glowing socket band.
+  const socket = y >= 6 && y <= 9 && x >= 6 && x <= 9;
+  const n = (rng() - 0.5) * 14;
+  if (socket) return [120 + n, 230 + n, 160 + n, 255];
+  return [40 + n, 70 + n, 58 + n, 255];
+};
+
+PAINTERS[Tile.EndPortal] = (x, y, rng) => {
+  // Swirling black-violet void, distinct from the brighter Nether portal.
+  const swirl = Math.sin(x * 0.8 - y * 0.6) + Math.cos(y * 0.5 + x * 0.3);
+  const n = (rng() - 0.5) * 14;
+  const base = swirl > 0.4 ? 45 : 10;
+  return [40 + base * 0.6 + n, 5 + n * 0.2, 60 + base + n, 220];
+};
+
+PAINTERS[Tile.EnderEyeItem] = (x, y) => {
+  // Pale green-rimmed eye with a black slit pupil, on transparent bg.
+  const dx = x - 7.5;
+  const dy = y - 7.5;
+  const d2 = dx * dx + dy * dy;
+  if (d2 > 36) return [0, 0, 0, 0];
+  if (d2 < 6) return [10, 10, 10, 255];
+  return [150, 210, 140, 255];
+};
+
+PAINTERS[Tile.DragonEggItem] = (x, y) => {
+  // Dark purple-black ovoid speckled with small spots, on transparent bg.
+  const dx = x - 7.5;
+  const dy = (y - 8.5) * 0.8;
+  const d2 = dx * dx + dy * dy;
+  if (d2 > 34) return [0, 0, 0, 0];
+  const speck = (x * 5 + y * 3) % 6 === 0;
+  return speck ? [55, 15, 70, 255] : [22, 5, 30, 255];
+};
 
 // Crack stages (tiles CrackBase..CrackBase+3): denser dark fissures per stage.
 for (let stage = 0; stage < 4; stage++) {

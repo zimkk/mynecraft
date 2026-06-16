@@ -19,6 +19,28 @@ export enum Block {
   Furnace = 16,
   Torch = 17,
   Wool = 18,
+  Chest = 19,
+  RedstoneWire = 20,
+  RedstoneTorch = 21,
+  LeverOff = 22,
+  LeverOn = 23,
+  ButtonOff = 24,
+  ButtonOn = 25,
+  RedstoneLampOff = 26,
+  RedstoneLampOn = 27,
+  LapisOre = 28,
+  Obsidian = 29,
+  EnchantingTable = 30,
+  BrewingStand = 31,
+  Netherrack = 32,
+  SoulSand = 33,
+  Glowstone = 34,
+  NetherPortal = 35,
+  Lava = 36,
+  EndStone = 37,
+  EndPortalFrame = 38,
+  EndPortal = 39,
+  Bedrock = 40,
 }
 
 /** Atlas tile slots (filled by the runtime-generated texture atlas in /rendering). */
@@ -51,12 +73,48 @@ export const Tile = {
   Torch: 25,
   /** Tool icons occupy tiles 26..55: 26 + classIndex*5 + tierIndex. */
   ToolBase: 26,
+  ChestTop: 51,
+  ChestSide: 52,
   /** Block-break crack stages occupy tiles 56..59. */
   CrackBase: 56,
   Apple: 60,
   Wool: 61,
   RawPorkchop: 62,
   CookedPorkchop: 63,
+  RedstoneWire: 64,
+  RedstoneTorch: 65,
+  LeverOff: 66,
+  LeverOn: 67,
+  ButtonOff: 68,
+  ButtonOn: 69,
+  RedstoneLampOff: 70,
+  RedstoneLampOn: 71,
+  LapisOre: 72,
+  Obsidian: 73,
+  EnchantingTableTop: 74,
+  EnchantingTableSide: 75,
+  Book: 76,
+  BrewingStandTop: 77,
+  BrewingStandSide: 78,
+  GlassBottle: 79,
+  PotionWater: 80,
+  PotionHealing: 81,
+  PotionStrength: 82,
+  PotionSwiftness: 83,
+  PotionResistance: 84,
+  EmeraldItem: 85,
+  Netherrack: 86,
+  SoulSand: 87,
+  Glowstone: 88,
+  NetherPortal: 89,
+  Lava: 90,
+  FlintAndSteelItem: 91,
+  EndStone: 92,
+  EndPortalFrame: 93,
+  EndPortal: 94,
+  EnderEyeItem: 95,
+  DragonEggItem: 96,
+  Bedrock: 97,
 } as const;
 
 export interface BlockDef {
@@ -81,9 +139,11 @@ export interface BlockDef {
   /** Player/entity physics collide with it. Defaults to `solid` (torches: false). */
   collidable: boolean;
   /** Non-cube render model. */
-  model?: 'torch';
+  model?: 'torch' | 'wire' | 'switch' | 'stand';
   /** Bonus drop rolled on break (e.g. apples from leaves). */
   randomDrop?: { id: string; chance: number };
+  /** Cannot be broken at all, in survival or creative (world-boundary Bedrock). */
+  unbreakable?: boolean;
 }
 
 interface DefExtra {
@@ -92,6 +152,7 @@ interface DefExtra {
   tool?: BlockDef['toolClass'];
   requiresTool?: boolean;
   minHarvest?: number;
+  unbreakable?: boolean;
 }
 
 function def(
@@ -114,6 +175,7 @@ function def(
     requiresTool: extra.requiresTool ?? false,
     minHarvest: extra.minHarvest ?? 0,
     collidable: solid,
+    unbreakable: extra.unbreakable ?? false,
   };
 }
 
@@ -147,6 +209,69 @@ export const BLOCKS: readonly BlockDef[] = [
     model: 'torch',
   },
   def(Block.Wool, 'Wool', true, false, { all: Tile.Wool }, { hardness: 0.8 }),
+  def(Block.Chest, 'Chest', true, false, { top: Tile.ChestTop, bottom: Tile.ChestTop, side: Tile.ChestSide }, { hardness: 2.5, tool: 'axe' }),
+  {
+    // Flat wire plate, walk-through; drops the redstone dust item.
+    ...def(Block.RedstoneWire, 'Redstone Wire', true, true, { all: Tile.RedstoneWire }, { drops: 'redstone', hardness: 0 }),
+    collidable: false,
+    model: 'wire',
+  },
+  {
+    ...def(Block.RedstoneTorch, 'Redstone Torch', true, true, { all: Tile.RedstoneTorch }, { hardness: 0.05 }),
+    collidable: false,
+    model: 'torch',
+  },
+  {
+    ...def(Block.LeverOff, 'Lever Off', true, true, { all: Tile.LeverOff }, { drops: 'lever', hardness: 0.5 }),
+    collidable: false,
+    model: 'switch',
+  },
+  {
+    ...def(Block.LeverOn, 'Lever On', true, true, { all: Tile.LeverOn }, { drops: 'lever', hardness: 0.5 }),
+    collidable: false,
+    model: 'switch',
+  },
+  {
+    ...def(Block.ButtonOff, 'Button Off', true, true, { all: Tile.ButtonOff }, { drops: 'button', hardness: 0.5 }),
+    collidable: false,
+    model: 'switch',
+  },
+  {
+    ...def(Block.ButtonOn, 'Button On', true, true, { all: Tile.ButtonOn }, { drops: 'button', hardness: 0.5 }),
+    collidable: false,
+    model: 'switch',
+  },
+  def(Block.RedstoneLampOff, 'Redstone Lamp Off', true, false, { all: Tile.RedstoneLampOff }, { drops: 'redstone_lamp', hardness: 0.3 }),
+  def(Block.RedstoneLampOn, 'Redstone Lamp On', true, false, { all: Tile.RedstoneLampOn }, { drops: 'redstone_lamp', hardness: 0.3 }),
+  def(Block.LapisOre, 'Lapis Ore', true, false, { all: Tile.LapisOre }, { drops: 'lapis', hardness: 3, tool: 'pickaxe', requiresTool: true, minHarvest: 1 }),
+  def(Block.Obsidian, 'Obsidian', true, false, { all: Tile.Obsidian }, { hardness: 10, tool: 'pickaxe', requiresTool: true, minHarvest: 3 }),
+  def(Block.EnchantingTable, 'Enchanting Table', true, false, { top: Tile.EnchantingTableTop, bottom: Tile.Obsidian, side: Tile.EnchantingTableSide }, { hardness: 5, tool: 'pickaxe', requiresTool: true }),
+  {
+    ...def(Block.BrewingStand, 'Brewing Stand', true, true, { top: Tile.BrewingStandTop, bottom: Tile.Cobblestone, side: Tile.BrewingStandSide }, { hardness: 0.5, tool: 'pickaxe' }),
+    collidable: false,
+    model: 'stand',
+  },
+  def(Block.Netherrack, 'Netherrack', true, false, { all: Tile.Netherrack }, { hardness: 0.4, tool: 'pickaxe' }),
+  def(Block.SoulSand, 'Soul Sand', true, false, { all: Tile.SoulSand }, { hardness: 0.5, tool: 'shovel' }),
+  def(Block.Glowstone, 'Glowstone', true, false, { all: Tile.Glowstone }, { hardness: 0.3 }),
+  {
+    ...def(Block.NetherPortal, 'Nether Portal', false, true, { all: Tile.NetherPortal }, { drops: null, hardness: 0 }),
+    collidable: false,
+  },
+  {
+    ...def(Block.Lava, 'Lava', false, true, { all: Tile.Lava }, { drops: null, hardness: 0 }),
+    collidable: false,
+  },
+  def(Block.EndStone, 'End Stone', true, false, { all: Tile.EndStone }, { hardness: 3, tool: 'pickaxe', requiresTool: true }),
+  def(Block.EndPortalFrame, 'End Portal Frame', true, false, { all: Tile.EndPortalFrame }, { hardness: 10, tool: 'pickaxe', requiresTool: true, minHarvest: 3 }),
+  {
+    ...def(Block.EndPortal, 'End Portal', false, true, { all: Tile.EndPortal }, { drops: null, hardness: 0 }),
+    collidable: false,
+  },
+  // World-floor boundary: caps every dimension so digging straight down can
+  // never expose the void underneath (previously the world simply ended at
+  // y=0 with nothing stopping you — see Player's void-damage handling).
+  def(Block.Bedrock, 'Bedrock', true, false, { all: Tile.Bedrock }, { drops: null, hardness: 0, unbreakable: true }),
 ];
 
 export function blockDef(id: number): BlockDef {
@@ -166,4 +291,9 @@ export function isSolid(id: number): boolean {
 /** Physics collision (torches are solid-for-targeting but walk-through). */
 export function isCollidable(id: number): boolean {
   return blockDef(id).collidable;
+}
+
+/** Bedrock and similar world-boundary blocks — cannot be broken at all. */
+export function isUnbreakable(id: number): boolean {
+  return blockDef(id).unbreakable === true;
 }

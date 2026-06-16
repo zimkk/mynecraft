@@ -37,6 +37,38 @@ shaped(['P', 'P'], { P: 'plank' }, 'stick', 4);
 shaped(['PP', 'PP'], { P: 'plank' }, 'crafting_table');
 shaped(['CCC', 'C C', 'CCC'], { C: 'cobblestone' }, 'furnace');
 shaped(['C', 'S'], { C: 'coal', S: 'stick' }, 'torch', 4);
+shaped(['PPP', 'P P', 'PPP'], { P: 'plank' }, 'chest');
+shaped(['R', 'S'], { R: 'redstone', S: 'stick' }, 'redstone_torch');
+shaped(['S', 'C'], { S: 'stick', C: 'cobblestone' }, 'lever');
+shapeless(['stone'], 'button');
+// Redstone Lamp: real vanilla shape — a Glowstone center in a plus of 4
+// Redstone Dust (corners empty). Fixed from an earlier glass-ring placeholder
+// now that Glowstone exists (added in the Nether phase).
+shaped([' R ', 'RGR', ' R '], { R: 'redstone', G: 'glowstone' }, 'redstone_lamp');
+shapeless(['plank', 'plank', 'plank'], 'book');
+// Enchanting Table: real vanilla shape — Book on top, a Diamond centered in
+// the middle row flanked by Obsidian, Obsidian across the bottom row. Fixed
+// a missing-Diamond bug in the original placeholder recipe.
+shaped([' B ', 'ODO', 'OOO'], { B: 'book', O: 'obsidian', D: 'diamond' }, 'enchanting_table');
+// Brewing: stand (stick stands in for the Nether-exclusive blaze rod, like
+// the redstone-torch/lever recipes substituting available materials), bottles
+// from glass, and a water bottle straight from a bottle (no fill-from-water
+// interaction yet — actual potions only come from brewing, not crafting).
+shaped([' S ', 'CCC'], { S: 'stick', C: 'cobblestone' }, 'brewing_stand');
+// Glass Bottle: real vanilla shape — a "V" of 3 glass (two top corners, one
+// bottom-middle), not just any 3 glass anywhere. Fixed from a shapeless
+// placeholder that ignored the shape entirely.
+shaped(['G G', ' G '], { G: 'glass' }, 'glass_bottle', 3);
+shapeless(['glass_bottle'], 'potion_water');
+// Flint and Steel: cobblestone substitutes for the Nether-exclusive flint,
+// following the same "available material" pattern as the brewing stand recipe.
+shaped(['I', 'C'], { I: 'iron_ingot', C: 'cobblestone' }, 'flint_and_steel');
+// End Portal Frame and Eye of Ender are both craftable from ordinary overworld
+// materials — a deliberate simplification of vanilla's stronghold/eye-of-ender
+// search, matching the project's "substitute available material" pattern.
+// Players build their own End portal exactly like a Nether portal.
+shapeless(['obsidian', 'diamond'], 'end_portal_frame');
+shapeless(['diamond', 'emerald'], 'ender_eye');
 
 // Tools: heads of X over stick handles.
 const TOOL_MATERIALS: Array<[string, string]> = [

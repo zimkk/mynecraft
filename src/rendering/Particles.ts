@@ -51,6 +51,26 @@ export class Particles {
     }
   }
 
+  /** Spawn falling rain streaks in a disk above (cx, cz), at height cy. */
+  rain(cx: number, cy: number, cz: number, radius: number, count = 24): void {
+    for (let n = 0; n < count; n++) {
+      const i = this.next;
+      this.next = (this.next + 1) % MAX_PARTICLES;
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * radius;
+      this.positions[i * 3] = cx + Math.cos(a) * r;
+      this.positions[i * 3 + 1] = cy;
+      this.positions[i * 3 + 2] = cz + Math.sin(a) * r;
+      this.velocities[i * 3] = 0;
+      this.velocities[i * 3 + 1] = -9 - Math.random() * 3;
+      this.velocities[i * 3 + 2] = 0;
+      this.colors[i * 3] = 0.6;
+      this.colors[i * 3 + 1] = 0.7;
+      this.colors[i * 3 + 2] = 0.95;
+      this.life[i] = 1.2;
+    }
+  }
+
   update(dt: number): void {
     let any = false;
     for (let i = 0; i < MAX_PARTICLES; i++) {

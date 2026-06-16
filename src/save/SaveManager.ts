@@ -1,7 +1,9 @@
 import { ItemStack } from '../items/ItemRegistry';
 import { FurnaceState } from '../world/Furnace';
+import { ChestState } from '../world/Chest';
+import { BrewingState } from '../world/Brewing';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 8;
 
 export interface SaveData {
   version: number;
@@ -24,6 +26,15 @@ export interface SaveData {
   health: number;
   hunger: number;
   gameMode: 'survival' | 'creative';
+  /** v5+: chest block-entity states keyed by "x,y,z". */
+  chests: Array<[string, ChestState]>;
+  /** v6+: pending button-press timers keyed by "x,y,z" → seconds remaining. */
+  redstone: Array<[string, number]>;
+  /** v7+: player experience. */
+  xpLevel: number;
+  xpPoints: number;
+  /** v8+: brewing stand block-entity states keyed by "x,y,z". */
+  brewing: Array<[string, BrewingState]>;
 }
 
 /**
@@ -46,6 +57,23 @@ function migrate(data: SaveData): SaveData | null {
     data.hunger = 20;
     data.gameMode = 'survival';
     data.version = 4;
+  }
+  if (data.version === 4) {
+    data.chests = [];
+    data.version = 5;
+  }
+  if (data.version === 5) {
+    data.redstone = [];
+    data.version = 6;
+  }
+  if (data.version === 6) {
+    data.xpLevel = 0;
+    data.xpPoints = 0;
+    data.version = 7;
+  }
+  if (data.version === 7) {
+    data.brewing = [];
+    data.version = 8;
   }
   if (data.version !== SAVE_VERSION) return null;
   return data;

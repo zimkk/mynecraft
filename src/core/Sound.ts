@@ -5,7 +5,7 @@
  */
 export type SoundName =
   | 'break_stone' | 'break_wood' | 'break_dirt' | 'place'
-  | 'pickup' | 'eat' | 'hurt' | 'tool_break' | 'mob_hurt';
+  | 'pickup' | 'eat' | 'hurt' | 'tool_break' | 'mob_hurt' | 'rain_patter';
 
 export class Sound {
   private ctx: AudioContext | null = null;
@@ -79,6 +79,9 @@ export class Sound {
       case 'hurt': this.blip('square', 320, 140, 0.2, 0.22); break;
       case 'mob_hurt': this.blip('square', 220, 110, 0.18, 0.18 * att); break;
       case 'tool_break': this.thud(1400, 0.3, 0.5); break;
+      // Soft high-frequency tick, played repeatedly while raining — approximates
+      // a patter without needing a true looping audio source.
+      case 'rain_patter': this.thud(2200, 0.08, 0.06); break;
     }
   }
 }

@@ -16,6 +16,8 @@ export class StatsHud {
   private readonly airEls: HTMLElement[] = [];
   private readonly flashEl: HTMLElement;
   private readonly deathEl: HTMLElement;
+  private readonly xpBarFill: HTMLElement;
+  private readonly xpLevelEl: HTMLElement;
   private flashTimer = 0;
 
   constructor(container: HTMLElement, onRespawn: () => void) {
@@ -67,6 +69,16 @@ export class StatsHud {
     this.root.appendChild(top);
     container.appendChild(this.root);
 
+    const xpBar = document.createElement('div');
+    xpBar.id = 'xp-bar';
+    this.xpBarFill = document.createElement('div');
+    this.xpBarFill.id = 'xp-bar-fill';
+    xpBar.appendChild(this.xpBarFill);
+    this.xpLevelEl = document.createElement('div');
+    this.xpLevelEl.id = 'xp-level';
+    container.appendChild(xpBar);
+    container.appendChild(this.xpLevelEl);
+
     this.flashEl = document.createElement('div');
     this.flashEl.id = 'damage-flash';
     container.appendChild(this.flashEl);
@@ -96,6 +108,11 @@ export class StatsHud {
     } else {
       this.flashEl.style.opacity = '0';
     }
+    const need = Player.xpToNextLevel(player.level);
+    this.xpBarFill.style.width = `${Math.min(100, (player.xp / need) * 100)}%`;
+    this.xpLevelEl.textContent = player.level > 0 ? String(player.level) : '';
+    this.xpLevelEl.style.display = player.level > 0 ? 'block' : 'none';
+
     if (player.creative) return;
 
     for (let i = 0; i < 10; i++) {

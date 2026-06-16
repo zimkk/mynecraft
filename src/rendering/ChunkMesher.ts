@@ -154,6 +154,25 @@ export function meshChunk(chunk: Chunk, world: ChunkManager): ChunkMeshData {
           emitBox(transparent, x + 0.4375, y, z + 0.4375, 0.125, 0.625, def.tiles[0], tileW, tileH, sky / 15, 1);
           continue;
         }
+        if (def.model === 'wire') {
+          // Thin plate hugging the floor.
+          const [sky, blk] = lightAt(world, baseX + x, y, baseZ + z);
+          emitBox(transparent, x, y, z, 1, 0.0625, def.tiles[0], tileW, tileH, sky / 15, blk / 15);
+          continue;
+        }
+        if (def.model === 'switch') {
+          // Small pedestal model shared by levers and buttons.
+          const [sky, blk] = lightAt(world, baseX + x, y, baseZ + z);
+          emitBox(transparent, x + 0.35, y, z + 0.35, 0.3, 0.3, def.tiles[0], tileW, tileH, sky / 15, blk / 15);
+          continue;
+        }
+        if (def.model === 'stand') {
+          // Brewing stand: thin center post on a flat base.
+          const [sky, blk] = lightAt(world, baseX + x, y, baseZ + z);
+          emitBox(transparent, x + 0.4375, y, z + 0.4375, 0.125, 0.875, def.tiles[3], tileW, tileH, sky / 15, blk / 15);
+          emitBox(transparent, x + 0.0625, y, z + 0.0625, 0.875, 0.1875, def.tiles[0], tileW, tileH, sky / 15, blk / 15);
+          continue;
+        }
 
         const buf = def.transparent ? transparent : opaque;
 

@@ -1,17 +1,23 @@
-import { TerrainGenerator } from './TerrainGenerator';
+import { TerrainGenerator, type IWorldGenerator } from './TerrainGenerator';
+import { NetherTerrainGenerator } from './NetherTerrainGenerator';
+import { EndTerrainGenerator } from './EndTerrainGenerator';
 
 /**
  * Terrain generation worker: receives chunk coordinates, returns the filled
  * block array as a transferable ArrayBuffer (zero-copy back to the main thread).
  */
-type InMsg = { type: 'init'; seed: string } | { type: 'gen'; cx: number; cz: number };
+type InMsg =
+  | { type: 'init'; seed: string; kind: 'overworld' | 'nether' | 'end' }
+  | { type: 'gen'; cx: number; cz: number };
 
-let generator: TerrainGenerator | null = null;
+let generator: IWorldGenerator | null = null;
 
 self.onmessage = (e: MessageEvent<InMsg>) => {
   const msg = e.data;
   if (msg.type === 'init') {
-    generator = new TerrainGenerator(msg.seed);
+    generator = msg.kind === 'nether' ? new NetherTerrainGenerator(msg.seed)
+      : msg.kind === 'end' ? new EndTerrainGenerator(msg.seed)
+      : new TerrainGenerator(msg.seed);
     return;
   }
   if (!generator) return;
