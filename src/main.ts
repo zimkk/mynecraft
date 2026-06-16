@@ -625,7 +625,7 @@ game.onUpdate((dt) => {
   player.update(dt, input);
   dayNight.update(dt, player.position, streamer.renderDistance, dimension);
   sky.setVisible(dimension === 'overworld');
-  sky.update(player.position, dayNight.sunDir, dayNight.daylight);
+  sky.update(dt, player.position, dayNight.sunDir, dayNight.daylight);
   hotbar.update(dt, input);
 
   // Melee: clicking a mob attacks it (and takes priority over mining).
@@ -809,7 +809,7 @@ game.onRender((_alpha, dt) => {
 
 // Set sun/sky/fog once so the world looks right behind the start menu.
 dayNight.update(0, player.position, streamer.renderDistance, dimension);
-sky.update(player.position, dayNight.sunDir, dayNight.daylight);
+sky.update(0, player.position, dayNight.sunDir, dayNight.daylight);
 game.start();
 
 // Console/dev hook for debugging and automated QA.
